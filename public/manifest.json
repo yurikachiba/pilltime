@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "PillTime",
+  "name": "PillTime - お薬管理アプリ",
+  "description": "お薬の服用スケジュールを簡単に管理できるWebアプリケーション",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +21,8 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#2563eb",
+  "background_color": "#f0f4ff",
+  "lang": "ja",
+  "categories": ["health", "medical"]
 }

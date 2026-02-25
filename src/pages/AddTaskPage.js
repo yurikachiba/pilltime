@@ -290,17 +290,6 @@ const AddTaskPage = () => {
                     placeholder={intervalType === 'hour' ? '何時間ごと' : '何日ごと'}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="taskDosage">用量</label>
-                  <input
-                    id="taskDosage"
-                    type="number"
-                    className="form-input form-input--small"
-                    min="1"
-                    value={selectedDosage}
-                    onChange={(e) => handleDosageChange(e.target.value)}
-                  />
-                </div>
               </>
             )}
           </div>

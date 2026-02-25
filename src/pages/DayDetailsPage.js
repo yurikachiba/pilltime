@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 import { useDayDetails } from '../hooks/useDayDetails';
 import { useModal } from '../hooks/useModal';
 import { MOOD_MIN, MOOD_MAX } from '../constants';
+import { api } from '../api/client';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -20,6 +21,34 @@ const DayDetailsPage = () => {
     save,
   } = useDayDetails(date);
   const modal = useModal();
+  const [prnLogs, setPrnLogs] = useState({});
+
+  // 頓服ログを取得
+  useEffect(() => {
+    const fetchPrnLogs = async () => {
+      try {
+        const logs = await api.get(`/api/prn-logs/${date}`);
+        setPrnLogs(logs);
+      } catch {
+        // ignore
+      }
+    };
+    fetchPrnLogs();
+  }, [date]);
+
+  const scheduledMeds = medications.filter((med) => med.frequency !== 'prn');
+  const prnMeds = medications.filter((med) => med.frequency === 'prn');
+
+  // 頓服ログエントリーのフラット化（表示用）
+  const prnLogEntries = prnMeds.flatMap((med) => {
+    const logs = prnLogs[med.id] || [];
+    return logs.map((log) => ({
+      ...log,
+      medName: med.name,
+      doseAmount: med.doseAmount,
+      unit: med.unit,
+    }));
+  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
   const handleSave = async () => {
     try {
@@ -108,18 +137,16 @@ const DayDetailsPage = () => {
         />
       </section>
 
-      <section className="detail-section">
-        <h2 className="detail-section__title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-          </svg>
-          薬の摂取状況
-        </h2>
-        {medications.length === 0 ? (
-          <p className="detail-section__empty">この日の薬の予定はありません</p>
-        ) : (
+      {scheduledMeds.length > 0 && (
+        <section className="detail-section">
+          <h2 className="detail-section__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+            </svg>
+            薬の摂取状況
+          </h2>
           <div className="medication-checklist">
-            {medications.map((medication) => (
+            {scheduledMeds.map((medication) => (
               <label key={medication.id} className={`med-check ${takenMedications.includes(medication.id) ? 'med-check--taken' : ''}`}>
                 <input
                   type="checkbox"
@@ -138,8 +165,35 @@ const DayDetailsPage = () => {
               </label>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {prnMeds.length > 0 && (
+        <section className="detail-section">
+          <h2 className="detail-section__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 8v4l3 3" />
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            頓服薬の服用記録
+          </h2>
+          {prnLogEntries.length === 0 ? (
+            <p className="detail-section__empty">この日の頓服記録はありません</p>
+          ) : (
+            <div className="prn-detail-logs">
+              {prnLogEntries.map((entry) => (
+                <div key={entry.timestamp} className="prn-detail-log">
+                  <span className="prn-detail-log__time">
+                    {new Date(entry.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="prn-detail-log__name">{entry.medName}</span>
+                  <span className="prn-detail-log__dose">{entry.doseAmount} {entry.unit}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <button className="btn btn--primary btn--full" onClick={handleSave}>保存する</button>
     </div>

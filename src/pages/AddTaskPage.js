@@ -5,7 +5,8 @@ import { DAYS_OF_WEEK, FREQUENCY_OPTIONS, INTERVAL_TYPES } from '../constants';
 import Modal from '../components/Modal';
 import { useModal } from '../hooks/useModal';
 
-const STEPS = ['基本情報', '頻度設定', '時間設定', '確認'];
+const ALL_STEPS = ['基本情報', '頻度設定', '時間設定', '確認'];
+const PRN_STEPS = ['基本情報', '頻度設定', '確認'];
 
 const AddTaskPage = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -23,13 +24,23 @@ const AddTaskPage = () => {
   const [errors, setErrors] = useState({});
   const modal = useModal();
 
+  const isPrn = frequency === 'prn';
+  const STEPS = isPrn ? PRN_STEPS : ALL_STEPS;
+
+  // 表示ステップ番号を実際のロジックステップに変換
+  const getLogicStep = (displayStep) => {
+    if (isPrn && displayStep >= 2) return displayStep + 1;
+    return displayStep;
+  };
+
   const validateStep = (step) => {
+    const logicStep = getLogicStep(step);
     const newErrors = {};
-    if (step === 0) {
+    if (logicStep === 0) {
       if (!taskName.trim()) newErrors.taskName = '薬の名前を入力してください';
       if (!unit.trim()) newErrors.unit = '単位を入力してください';
     }
-    if (step === 1) {
+    if (logicStep === 1) {
       if (!frequency) newErrors.frequency = '頻度を選択してください';
       if (frequency === 'weekly' && selectedDays.length === 0) {
         newErrors.selectedDays = '曜日を1つ以上選択してください';
@@ -39,7 +50,7 @@ const AddTaskPage = () => {
         if (!intervalValue || Number(intervalValue) <= 0) newErrors.intervalValue = '間隔の値を正しく入力してください';
       }
     }
-    if (step === 2) {
+    if (logicStep === 2) {
       const hasEmptyTime = selectedTimes.some((t) => !t);
       if (hasEmptyTime) newErrors.selectedTimes = 'すべての時間を設定してください';
       if (frequency === 'interval' && intervalType === 'hour' && !endTime) {
@@ -165,6 +176,8 @@ const AddTaskPage = () => {
     } else if (frequency === 'interval') {
       const typeLabel = INTERVAL_TYPES[intervalType] || '';
       detail = `${intervalValue}${typeLabel}`;
+    } else if (frequency === 'prn') {
+      detail = '症状がある時に服用';
     }
     return { freqLabel, detail };
   }, [frequency, selectedDosage, selectedTimes, selectedDays, intervalType, intervalValue]);
@@ -326,7 +339,7 @@ const AddTaskPage = () => {
           </div>
         )}
 
-        {currentStep === 2 && (
+        {getLogicStep(currentStep) === 2 && !isPrn && (
           <div className="form-step">
             {errors.selectedTimes && <span className="form-error">{errors.selectedTimes}</span>}
 
@@ -410,7 +423,7 @@ const AddTaskPage = () => {
           </div>
         )}
 
-        {currentStep === 3 && (
+        {getLogicStep(currentStep) === 3 && (
           <div className="form-step">
             <div className="confirm-card">
               <h3 className="confirm-card__title">入力内容の確認</h3>

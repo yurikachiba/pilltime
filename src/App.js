@@ -15,10 +15,10 @@ import './App.css';
 function AppLayout() {
   return (
     <div className="app">
+      <BottomNav />
       <main className="app__main">
         <Outlet />
       </main>
-      <BottomNav />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "short_name": "PillTime",
   "name": "PillTime - お薬管理アプリ",
   "description": "お薬の服用スケジュールを簡単に管理できるWebアプリケーション",
@@ -33,8 +34,10 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#2563eb",
   "background_color": "#f0f4ff",
   "lang": "ja",

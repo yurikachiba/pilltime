@@ -9,8 +9,23 @@ export async function registerServiceWorker() {
     swRegistration = await navigator.serviceWorker.register('/sw.js');
     await navigator.serviceWorker.ready;
 
+    // controllerが使えるようになるまで待つ（skipWaiting + clients.claim の反映待ち）
+    if (!navigator.serviceWorker.controller) {
+      await new Promise((resolve) => {
+        navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+        // 5秒でタイムアウト
+        setTimeout(resolve, 5000);
+      });
+    }
+
     // Service Workerにチェッカー開始を指示
     sendToSW({ type: 'START_CHECKER' });
+
+    // 保存済みスケジュールがあればSWに即送信（controller確立後に確実に届ける）
+    const saved = getSchedulesFromStorage();
+    if (saved.length > 0) {
+      sendToSW({ type: 'UPDATE_SCHEDULES', data: saved });
+    }
 
     // Service Workerからのスケジュール要求に応答
     navigator.serviceWorker.addEventListener('message', (event) => {
@@ -29,6 +44,9 @@ export async function registerServiceWorker() {
 export function sendToSW(message) {
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage(message);
+  } else if (swRegistration?.active) {
+    // controllerがnullでもactiveなSWがあればそちらに送る
+    swRegistration.active.postMessage(message);
   }
 }
 
@@ -82,6 +100,18 @@ function getNotificationTitle(messageType) {
     cat: 'にゃー！お薬の時間だよ！',
   };
   return titles[messageType] || titles.default;
+}
+
+/**
+ * Service Worker経由で通知を表示（テスト通知用）
+ */
+export async function showNotificationViaSW(title, options) {
+  if (!swRegistration) {
+    swRegistration = await navigator.serviceWorker?.ready;
+  }
+  if (swRegistration) {
+    return swRegistration.showNotification(title, options);
+  }
 }
 
 /**

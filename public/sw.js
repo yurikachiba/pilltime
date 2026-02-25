@@ -1,16 +1,79 @@
-// PillTime Service Worker - バックグラウンド通知
+// PillTime Service Worker - バックグラウンド通知 & PWAキャッシュ
 
 const CACHE_NAME = 'pilltime-v1';
 
-// インストール
+// プリキャッシュするアセット（CRAのビルド成果物はハッシュ付きなのでランタイムキャッシュで対応）
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/favicon.svg',
+  '/favicon.ico',
+  '/logo192.png',
+  '/logo512.png',
+];
+
+// インストール時にプリキャッシュ
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
   self.skipWaiting();
 });
 
-// アクティベート
+// アクティベート時に古いキャッシュを削除
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
+  );
 });
+
+// fetchイベント: Network First（JS/CSS）、Cache First（静的アセット）
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  // API呼び出しはキャッシュしない
+  if (request.url.includes('/api/')) return;
+
+  // ナビゲーションリクエスト（HTML）はNetwork First + オフラインフォールバック
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // その他の静的アセットはStale While Revalidate
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => cached);
+
+      return cached || fetchPromise;
+    })
+  );
+});
+
+// ---------- 通知スケジューラ ----------
 
 // スケジュールされた通知のチェック間隔 (ms)
 const CHECK_INTERVAL = 30 * 1000; // 30秒ごとにチェック
@@ -81,7 +144,8 @@ async function processSchedules(schedules) {
   }
 }
 
-// IndexedDB ヘルパー
+// ---------- IndexedDB ヘルパー ----------
+
 function openIDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('pilltime_sw', 1);
@@ -122,7 +186,8 @@ async function getSchedulesFromIDB() {
   return (await getFromIDB('notification_schedules')) || [];
 }
 
-// クライアントからのメッセージ処理
+// ---------- メッセージハンドラ ----------
+
 self.addEventListener('message', (event) => {
   const { type, data } = event.data || {};
 
@@ -132,6 +197,8 @@ self.addEventListener('message', (event) => {
   }
 
   if (type === 'SCHEDULES_RESPONSE') {
+    // クライアントからの応答もIDBに保存しておく（次回バックグラウンドで使えるように）
+    saveToIDB('notification_schedules', data);
     processSchedules(data);
   }
 

@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useMedications } from '../hooks/useMedications';
 import { NOTIFICATION_MESSAGES } from '../constants';
-import { requestNotificationPermission, updateNotificationSchedules } from '../notifications';
+import { requestNotificationPermission, updateNotificationSchedules, showNotificationViaSW } from '../notifications';
 import { api } from '../api/client';
 import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -86,9 +86,11 @@ const TodayMeds = () => {
     if (Notification.permission === 'granted') {
       const messageType = notificationSettings[med.id]?.messageType || 'default';
       const message = NOTIFICATION_MESSAGES[messageType] || NOTIFICATION_MESSAGES.default;
-      new Notification(message, {
+      showNotificationViaSW(message, {
         body: `${med.name}を${med.doseAmount} ${med.unit}服用してください`,
-        icon: '/pill-icon.png',
+        icon: '/logo192.png',
+        badge: '/favicon-32x32.png',
+        vibrate: [200, 100, 200, 100, 200],
       });
     }
   }, [notificationSettings]);

@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import Modal from '../components/Modal';
-import useModal from '../hooks/useModal';
+import { useModal } from '../hooks/useModal';
 
 const STORAGE_KEYS = {
   medications: 'pilltime_medications',
@@ -42,7 +42,7 @@ function validateImportData(data) {
 }
 
 const DataManagePage = () => {
-  const { modal, showSuccess, showError, closeModal } = useModal();
+  const { isOpen, message, type, showSuccess, showError, close } = useModal();
   const fileInputRef = useRef(null);
   const [importMode, setImportMode] = useState('replace');
 
@@ -221,10 +221,10 @@ const DataManagePage = () => {
       </section>
 
       <Modal
-        isOpen={modal.isOpen}
-        type={modal.type}
-        message={modal.message}
-        onClose={closeModal}
+        isOpen={isOpen}
+        type={type}
+        message={message}
+        onClose={close}
       />
     </div>
   );

@@ -18,6 +18,7 @@ export const FREQUENCY_OPTIONS = {
   daily: '毎日複数回',
   weekly: '特定の曜日',
   interval: '間隔',
+  prn: '頓服（必要時）',
 };
 
 export const INTERVAL_TYPES = {

@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
+  prnLogs: 'pilltime_prn_logs',
 };
 
 function getStored(key) {
@@ -96,6 +97,11 @@ async function localRequest(endpoint, options = {}) {
         newMed.startDate = body.startDate;
       }
     }
+    // 頓服薬は時間情報不要
+    if (body.frequency === 'prn') {
+      newMed.selectedTimes = [];
+      newMed.time = '';
+    }
     medications.push(newMed);
     setStored(STORAGE_KEYS.medications, medications);
 
@@ -122,11 +128,57 @@ async function localRequest(endpoint, options = {}) {
     return { success: true };
   }
 
+  // POST /api/prn-log
+  if (method === 'POST' && endpoint === '/api/prn-log') {
+    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
+    const medId = body.medicationId;
+    if (!logs[medId]) {
+      logs[medId] = [];
+    }
+    logs[medId].push({
+      timestamp: body.timestamp || new Date().toISOString(),
+      date: body.date || new Date().toISOString().split('T')[0],
+    });
+    setStored(STORAGE_KEYS.prnLogs, logs);
+    return { success: true };
+  }
+
+  // DELETE /api/prn-log
+  if (method === 'DELETE' && endpoint === '/api/prn-log') {
+    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
+    const medId = body.medicationId;
+    if (logs[medId]) {
+      logs[medId] = logs[medId].filter((log) => log.timestamp !== body.timestamp);
+      setStored(STORAGE_KEYS.prnLogs, logs);
+    }
+    return { success: true };
+  }
+
+  // GET /api/prn-logs/:date
+  if (method === 'GET' && endpoint.startsWith('/api/prn-logs/')) {
+    const date = endpoint.replace('/api/prn-logs/', '');
+    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
+    const result = {};
+    for (const [medId, medLogs] of Object.entries(logs)) {
+      const dayLogs = medLogs.filter((log) => log.date === date);
+      if (dayLogs.length > 0) {
+        result[medId] = dayLogs;
+      }
+    }
+    return result;
+  }
+
   // DELETE /api/medications/:id
   if (method === 'DELETE' && endpoint.startsWith('/api/medications/')) {
     const id = endpoint.replace('/api/medications/', '');
     const medications = (getStored(STORAGE_KEYS.medications) || []).filter((m) => m.id !== id);
     setStored(STORAGE_KEYS.medications, medications);
+    // 頓服ログも削除
+    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
+    if (logs[id]) {
+      delete logs[id];
+      setStored(STORAGE_KEYS.prnLogs, logs);
+    }
     return { success: true };
   }
 
@@ -137,5 +189,5 @@ export const api = {
   get: (endpoint) => localRequest(endpoint),
   post: (endpoint, data) => localRequest(endpoint, { method: 'POST', body: data }),
   put: (endpoint, data) => localRequest(endpoint, { method: 'PUT', body: data }),
-  delete: (endpoint) => localRequest(endpoint, { method: 'DELETE' }),
+  delete: (endpoint, data) => localRequest(endpoint, { method: 'DELETE', body: data }),
 };

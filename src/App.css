@@ -193,6 +193,34 @@ body {
   margin-bottom: 20px;
 }
 
+.today-meds__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.today-meds__links {
+  display: flex;
+  gap: 4px;
+}
+
+.today-meds__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition);
+  text-decoration: none;
+}
+
+.today-meds__link:hover {
+  background: var(--color-border-light);
+  color: var(--color-primary);
+}
+
 .today-meds__date {
   color: var(--color-text-secondary);
   font-size: 14px;
@@ -396,6 +424,180 @@ body {
 
 .med-card__toggle input:checked + .med-card__toggle-slider::before {
   transform: translateX(18px);
+}
+
+/* --- PRN Section --- */
+.prn-section {
+  margin-top: 24px;
+}
+
+.prn-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.prn-section__title svg {
+  color: var(--color-warning);
+}
+
+.prn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prn-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-warning);
+  transition: all var(--transition);
+}
+
+.prn-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.prn-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prn-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.prn-card__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.prn-card__dose {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 2px 0 0;
+}
+
+.prn-card__log-btn {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--color-warning);
+  color: #fff;
+}
+
+.prn-card__log-btn:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+.prn-card__logs {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.prn-card__logs-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+.prn-card__log-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prn-card__log-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.prn-card__log-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.prn-card__log-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition);
+}
+
+.prn-card__log-delete:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+/* --- PRN in Day Details --- */
+.prn-detail-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prn-detail-log {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.prn-detail-log__name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.prn-detail-log__time {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.prn-detail-log__dose {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-left: auto;
 }
 
 /* --- Calendar --- */

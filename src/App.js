@@ -7,6 +7,7 @@ import RecordPage from './pages/RecordPage';
 import AddTaskPage from './pages/AddTaskPage';
 import DayDetailsPage from './pages/DayDetailsPage';
 import LandingPage from './pages/LandingPage';
+import DataManagePage from './pages/DataManagePage';
 import ErrorBoundary from './pages/ErrorBoundary';
 import BottomNav from './components/BottomNav';
 
@@ -36,6 +37,7 @@ function App() {
               <Route path="/records" element={<RecordPage />} />
               <Route path="/add-task" element={<AddTaskPage />} />
               <Route path="/day-details/:date" element={<DayDetailsPage />} />
+              <Route path="/data" element={<DataManagePage />} />
             </Route>
           </Routes>
         </ErrorBoundary>

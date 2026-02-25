@@ -21,13 +21,30 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
+// 既存データに doseAmount / timesPerDay がない場合の補完
+function normalizeMedication(med) {
+  const normalized = { ...med };
+  // 旧 dose フィールドの移行
+  if (normalized.doseAmount == null) {
+    // 旧データの dose は daily の回数だったので、錠数としては使わない
+    normalized.doseAmount = 1;
+  }
+  if (normalized.timesPerDay == null) {
+    // 旧データの dose が daily の回数だった
+    normalized.timesPerDay = (normalized.frequency === 'daily' && normalized.dose > 0)
+      ? normalized.dose
+      : undefined;
+  }
+  return normalized;
+}
+
 async function localRequest(endpoint, options = {}) {
   const method = options.method || 'GET';
   const body = options.body && typeof options.body === 'object' ? options.body : options.body ? JSON.parse(options.body) : null;
 
   // GET /api/medications
   if (method === 'GET' && endpoint === '/api/medications') {
-    return getStored(STORAGE_KEYS.medications) || [];
+    return (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
   }
 
   // GET /api/medicationHistory
@@ -40,7 +57,7 @@ async function localRequest(endpoint, options = {}) {
     const date = endpoint.replace('/api/day-details/', '');
     const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
     const dayData = allDetails[date] || {};
-    const medications = getStored(STORAGE_KEYS.medications) || [];
+    const medications = (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
     return {
       mood: dayData.mood || 5,
       notes: dayData.notes || '',
@@ -56,17 +73,29 @@ async function localRequest(endpoint, options = {}) {
       id: generateId(),
       name: body.name,
       unit: body.unit,
-      dose: body.selectedDosage,
+      doseAmount: body.doseAmount || 1,
       frequency: body.frequency,
-      selectedDays: body.selectedDays,
       selectedTimes: body.selectedTimes,
-      intervalType: body.intervalType,
-      intervalValue: body.intervalValue,
-      endTime: body.endTime,
-      startDate: body.startDate,
       time: body.selectedTimes?.[0] || '',
       createdAt: new Date().toISOString(),
     };
+    // 頻度に応じたフィールドだけ保存
+    if (body.frequency === 'daily') {
+      newMed.timesPerDay = body.timesPerDay || 1;
+    }
+    if (body.frequency === 'weekly') {
+      newMed.selectedDays = body.selectedDays || [];
+    }
+    if (body.frequency === 'interval') {
+      newMed.intervalType = body.intervalType;
+      newMed.intervalValue = body.intervalValue;
+      if (body.intervalType === 'hour') {
+        newMed.endTime = body.endTime;
+      }
+      if (body.intervalType === 'day') {
+        newMed.startDate = body.startDate;
+      }
+    }
     medications.push(newMed);
     setStored(STORAGE_KEYS.medications, medications);
 

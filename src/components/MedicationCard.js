@@ -18,7 +18,7 @@ const MedicationCard = ({
         <div className="med-card__info">
           <h3 className="med-card__name">{med.name}</h3>
           <p className="med-card__dose">
-            {med.dose} {med.unit}
+            1回 {med.doseAmount} {med.unit}
           </p>
         </div>
         <div className="med-card__time-badge">

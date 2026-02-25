@@ -15,6 +15,7 @@ const AddTaskPage = () => {
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState(['']);
   const [selectedDosage, setSelectedDosage] = useState(1);
+  const [doseAmount, setDoseAmount] = useState(1);
   const [intervalType, setIntervalType] = useState('');
   const [intervalValue, setIntervalValue] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -62,6 +63,24 @@ const AddTaskPage = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
+  const handleFrequencyChange = (newFrequency) => {
+    setFrequency(newFrequency);
+    // 頻度を切り替えたら関係ないステートをリセット
+    if (newFrequency !== 'daily') {
+      setSelectedDosage(1);
+      setSelectedTimes(['']);
+    }
+    if (newFrequency !== 'weekly') {
+      setSelectedDays([]);
+    }
+    if (newFrequency !== 'interval') {
+      setIntervalType('');
+      setIntervalValue('');
+      setEndTime('');
+      setStartDate('');
+    }
+  };
+
   const handleDosageChange = (value) => {
     const num = Math.max(1, Number(value));
     setSelectedDosage(num);
@@ -92,6 +111,7 @@ const AddTaskPage = () => {
     setSelectedDays([]);
     setSelectedTimes(['']);
     setSelectedDosage(1);
+    setDoseAmount(1);
     setIntervalType('');
     setIntervalValue('');
     setEndTime('');
@@ -102,18 +122,32 @@ const AddTaskPage = () => {
 
   const handleSubmit = async () => {
     try {
-      await api.post('/api/tasks', {
+      const payload = {
         name: taskName,
         unit,
         frequency,
-        selectedDays,
-        selectedTimes,
-        selectedDosage,
-        intervalType,
-        intervalValue,
-        endTime,
-        startDate,
-      });
+        doseAmount,
+        selectedTimes: frequency === 'daily'
+          ? selectedTimes
+          : [selectedTimes[0] || ''],
+      };
+      if (frequency === 'daily') {
+        payload.timesPerDay = selectedDosage;
+      }
+      if (frequency === 'weekly') {
+        payload.selectedDays = selectedDays;
+      }
+      if (frequency === 'interval') {
+        payload.intervalType = intervalType;
+        payload.intervalValue = intervalValue;
+        if (intervalType === 'hour') {
+          payload.endTime = endTime;
+        }
+        if (intervalType === 'day') {
+          payload.startDate = startDate;
+        }
+      }
+      await api.post('/api/tasks', payload);
       modal.showSuccess('タスクが保存されました！');
       resetForm();
     } catch {
@@ -182,6 +216,20 @@ const AddTaskPage = () => {
               />
               {errors.unit && <span className="form-error">{errors.unit}</span>}
             </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="doseAmount">1回あたりの服用量</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="doseAmount"
+                  type="number"
+                  className="form-input form-input--small"
+                  min="1"
+                  value={doseAmount}
+                  onChange={(e) => setDoseAmount(Math.max(1, Number(e.target.value)))}
+                />
+                <span className="form-label" style={{ marginBottom: 0 }}>{unit || '錠'}</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -198,7 +246,7 @@ const AddTaskPage = () => {
                       name="frequency"
                       value={key}
                       checked={frequency === key}
-                      onChange={() => setFrequency(key)}
+                      onChange={() => handleFrequencyChange(key)}
                     />
                     <span className="radio-card__label">{label}</span>
                   </label>
@@ -271,17 +319,6 @@ const AddTaskPage = () => {
                     value={intervalValue}
                     onChange={(e) => setIntervalValue(e.target.value)}
                     placeholder={intervalType === 'hour' ? '何時間ごと' : '何日ごと'}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="taskDosage">用量</label>
-                  <input
-                    id="taskDosage"
-                    type="number"
-                    className="form-input form-input--small"
-                    min="1"
-                    value={selectedDosage}
-                    onChange={(e) => handleDosageChange(e.target.value)}
                   />
                 </div>
               </>
@@ -395,8 +432,8 @@ const AddTaskPage = () => {
                   <dd>{summary.detail}</dd>
                 </div>
                 <div className="confirm-card__row">
-                  <dt>用量</dt>
-                  <dd>{selectedDosage} {unit}</dd>
+                  <dt>1回あたりの服用量</dt>
+                  <dd>{doseAmount} {unit}</dd>
                 </div>
               </dl>
             </div>

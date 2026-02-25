@@ -134,7 +134,7 @@ const DayDetailsPage = () => {
                     </svg>
                   )}
                 </span>
-                <span className="med-check__name">{medication.name}（{medication.doseAmount || medication.dose} {medication.unit}）</span>
+                <span className="med-check__name">{medication.name}（{medication.doseAmount} {medication.unit}）</span>
               </label>
             ))}
           </div>

@@ -41,7 +41,7 @@ const TodayMeds = () => {
       const messageType = notificationSettings[med.id]?.messageType || 'default';
       const message = NOTIFICATION_MESSAGES[messageType] || NOTIFICATION_MESSAGES.default;
       new Notification(message, {
-        body: `${med.name}を${med.doseAmount || med.dose} ${med.unit}服用してください`,
+        body: `${med.name}を${med.doseAmount} ${med.unit}服用してください`,
         icon: '/pill-icon.png',
       });
     }

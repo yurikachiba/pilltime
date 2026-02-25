@@ -63,6 +63,24 @@ const AddTaskPage = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
+  const handleFrequencyChange = (newFrequency) => {
+    setFrequency(newFrequency);
+    // 頻度を切り替えたら関係ないステートをリセット
+    if (newFrequency !== 'daily') {
+      setSelectedDosage(1);
+      setSelectedTimes(['']);
+    }
+    if (newFrequency !== 'weekly') {
+      setSelectedDays([]);
+    }
+    if (newFrequency !== 'interval') {
+      setIntervalType('');
+      setIntervalValue('');
+      setEndTime('');
+      setStartDate('');
+    }
+  };
+
   const handleDosageChange = (value) => {
     const num = Math.max(1, Number(value));
     setSelectedDosage(num);
@@ -104,19 +122,32 @@ const AddTaskPage = () => {
 
   const handleSubmit = async () => {
     try {
-      await api.post('/api/tasks', {
+      const payload = {
         name: taskName,
         unit,
         frequency,
-        selectedDays,
-        selectedTimes,
-        selectedDosage,
         doseAmount,
-        intervalType,
-        intervalValue,
-        endTime,
-        startDate,
-      });
+        selectedTimes: frequency === 'daily'
+          ? selectedTimes
+          : [selectedTimes[0] || ''],
+      };
+      if (frequency === 'daily') {
+        payload.timesPerDay = selectedDosage;
+      }
+      if (frequency === 'weekly') {
+        payload.selectedDays = selectedDays;
+      }
+      if (frequency === 'interval') {
+        payload.intervalType = intervalType;
+        payload.intervalValue = intervalValue;
+        if (intervalType === 'hour') {
+          payload.endTime = endTime;
+        }
+        if (intervalType === 'day') {
+          payload.startDate = startDate;
+        }
+      }
+      await api.post('/api/tasks', payload);
       modal.showSuccess('タスクが保存されました！');
       resetForm();
     } catch {
@@ -215,7 +246,7 @@ const AddTaskPage = () => {
                       name="frequency"
                       value={key}
                       checked={frequency === key}
-                      onChange={() => setFrequency(key)}
+                      onChange={() => handleFrequencyChange(key)}
                     />
                     <span className="radio-card__label">{label}</span>
                   </label>

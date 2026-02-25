@@ -15,6 +15,7 @@ const AddTaskPage = () => {
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState(['']);
   const [selectedDosage, setSelectedDosage] = useState(1);
+  const [doseAmount, setDoseAmount] = useState(1);
   const [intervalType, setIntervalType] = useState('');
   const [intervalValue, setIntervalValue] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -92,6 +93,7 @@ const AddTaskPage = () => {
     setSelectedDays([]);
     setSelectedTimes(['']);
     setSelectedDosage(1);
+    setDoseAmount(1);
     setIntervalType('');
     setIntervalValue('');
     setEndTime('');
@@ -109,6 +111,7 @@ const AddTaskPage = () => {
         selectedDays,
         selectedTimes,
         selectedDosage,
+        doseAmount,
         intervalType,
         intervalValue,
         endTime,
@@ -181,6 +184,20 @@ const AddTaskPage = () => {
                 placeholder="例: 錠, mg, mL"
               />
               {errors.unit && <span className="form-error">{errors.unit}</span>}
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="doseAmount">1回あたりの服用量</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="doseAmount"
+                  type="number"
+                  className="form-input form-input--small"
+                  min="1"
+                  value={doseAmount}
+                  onChange={(e) => setDoseAmount(Math.max(1, Number(e.target.value)))}
+                />
+                <span className="form-label" style={{ marginBottom: 0 }}>{unit || '錠'}</span>
+              </div>
             </div>
           </div>
         )}
@@ -395,8 +412,8 @@ const AddTaskPage = () => {
                   <dd>{summary.detail}</dd>
                 </div>
                 <div className="confirm-card__row">
-                  <dt>用量</dt>
-                  <dd>{selectedDosage} {unit}</dd>
+                  <dt>1回あたりの服用量</dt>
+                  <dd>{doseAmount} {unit}</dd>
                 </div>
               </dl>
             </div>

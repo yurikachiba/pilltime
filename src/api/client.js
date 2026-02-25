@@ -57,6 +57,7 @@ async function localRequest(endpoint, options = {}) {
       name: body.name,
       unit: body.unit,
       dose: body.selectedDosage,
+      doseAmount: body.doseAmount || 1,
       frequency: body.frequency,
       selectedDays: body.selectedDays,
       selectedTimes: body.selectedTimes,

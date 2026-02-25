@@ -3,13 +3,17 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useMedications } from '../hooks/useMedications';
 import { NOTIFICATION_MESSAGES } from '../constants';
+import { requestNotificationPermission, updateNotificationSchedules } from '../notifications';
 import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
 const TodayMeds = () => {
   const { medications, setMedications, loading, error } = useMedications();
-  const [notificationSettings, setNotificationSettings] = useState({});
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    const saved = localStorage.getItem('pilltime_notification_settings');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [takenMeds, setTakenMeds] = useState(() => {
     const saved = localStorage.getItem(`takenMeds_${new Date().toISOString().split('T')[0]}`);
     return saved ? JSON.parse(saved) : [];
@@ -17,24 +21,42 @@ const TodayMeds = () => {
 
   useEffect(() => {
     if (medications.length > 0) {
-      const initialSettings = medications.reduce((acc, med) => {
-        acc[med.id] = { on: true, messageType: 'default' };
-        return acc;
-      }, {});
-      setNotificationSettings(initialSettings);
+      setNotificationSettings((prev) => {
+        const updated = { ...prev };
+        let changed = false;
+        for (const med of medications) {
+          if (!updated[med.id]) {
+            updated[med.id] = { on: true, messageType: 'default' };
+            changed = true;
+          }
+        }
+        return changed ? updated : prev;
+      });
     }
   }, [medications]);
 
   useEffect(() => {
-    if (Notification.permission !== 'granted') {
-      Notification.requestPermission();
-    }
+    requestNotificationPermission();
   }, []);
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     localStorage.setItem(`takenMeds_${today}`, JSON.stringify(takenMeds));
   }, [takenMeds]);
+
+  // 通知設定をlocalStorageに永続化
+  useEffect(() => {
+    if (Object.keys(notificationSettings).length > 0) {
+      localStorage.setItem('pilltime_notification_settings', JSON.stringify(notificationSettings));
+    }
+  }, [notificationSettings]);
+
+  // 通知スケジュールをService Workerに同期
+  useEffect(() => {
+    if (medications.length > 0 && Object.keys(notificationSettings).length > 0) {
+      updateNotificationSchedules(medications, notificationSettings);
+    }
+  }, [medications, notificationSettings]);
 
   const handleNotification = useCallback((med) => {
     if (Notification.permission === 'granted') {

@@ -41,6 +41,14 @@ const BottomNav = () => {
         </svg>
         <span>記録</span>
       </NavLink>
+      <NavLink to="/data" className={({ isActive }) => `bottom-nav__item ${isActive ? 'bottom-nav__item--active' : ''}`}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3v18" />
+          <rect x="4" y="8" width="6" height="7" rx="1" />
+          <rect x="14" y="5" width="6" height="10" rx="1" />
+        </svg>
+        <span>データ</span>
+      </NavLink>
     </nav>
   );
 };

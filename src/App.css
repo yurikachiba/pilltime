@@ -166,9 +166,6 @@ body {
   transform: scale(1.1);
 }
 
-.bottom-nav__item--add.bottom-nav__item--active {
-  color: var(--color-primary);
-}
 
 /* --- Today Meds --- */
 .today-meds__header {
@@ -266,6 +263,56 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
+}
+
+.med-card__header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.med-card__menu-wrapper {
+  position: relative;
+}
+
+.med-card__menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.med-card__menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+}
+
+.med-card__menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  min-width: 120px;
+  overflow: hidden;
+}
+
+.med-card__menu-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.med-card__menu-item:hover {
+  background: var(--color-bg);
 }
 
 .med-card__name {
@@ -1136,12 +1183,6 @@ body {
   color: var(--color-primary);
 }
 
-.detail-section__empty {
-  font-size: 14px;
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: 20px 0;
-}
 
 /* --- Mood Slider --- */
 .mood-faces {

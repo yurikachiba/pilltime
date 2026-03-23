@@ -1,7 +1,8 @@
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
+  notificationSettings: 'pilltime_notification_settings',
 };
 
 function getStored(key) {
@@ -147,11 +148,6 @@ async function localRequest(endpoint, options = {}) {
   // GET /api/medications
   if (method === 'GET' && endpoint === '/api/medications') {
     return (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
-  }
-
-  // GET /api/medicationHistory
-  if (method === 'GET' && endpoint === '/api/medicationHistory') {
-    return getStored(STORAGE_KEYS.history) || [];
   }
 
   // GET /api/all-records（全日付の服用記録を集約して返す）

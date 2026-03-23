@@ -2,13 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import Modal from '../components/Modal';
 import { useModal } from '../hooks/useModal';
-
-const STORAGE_KEYS = {
-  medications: 'pilltime_medications',
-  history: 'pilltime_history',
-  dayDetails: 'pilltime_day_details',
-  notificationSettings: 'pilltime_notification_settings',
-};
+import { STORAGE_KEYS } from '../api/client';
 
 const OBJECT_KEYS = ['dayDetails', 'notificationSettings'];
 

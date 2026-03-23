@@ -19,14 +19,6 @@ export function useMedications() {
   return { medications, setMedications, loading, error: error?.message || null, refetch };
 }
 
-export function useMedicationHistory() {
-  const { data: history = [], isLoading: loading, error } = useQuery({
-    queryKey: ['medicationHistory'],
-    queryFn: () => api.get('/api/medicationHistory'),
-  });
-
-  return { history, loading, error: error?.message || null };
-}
 
 export function useAllRecords() {
   const { data: records = [], isLoading: loading, error } = useQuery({

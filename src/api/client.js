@@ -169,6 +169,17 @@ async function localRequest(endpoint, options = {}) {
     return result;
   }
 
+  // PUT /api/medications/:id
+  if (method === 'PUT' && endpoint.startsWith('/api/medications/')) {
+    const id = endpoint.replace('/api/medications/', '');
+    const medications = getStored(STORAGE_KEYS.medications) || [];
+    const index = medications.findIndex((m) => m.id === id);
+    if (index === -1) throw new Error('Medication not found');
+    medications[index] = { ...medications[index], ...body, id };
+    setStored(STORAGE_KEYS.medications, medications);
+    return normalizeMedication(medications[index]);
+  }
+
   // DELETE /api/medications/:id
   if (method === 'DELETE' && endpoint.startsWith('/api/medications/')) {
     const id = endpoint.replace('/api/medications/', '');

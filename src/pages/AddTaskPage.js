@@ -5,8 +5,36 @@ import { DAYS_OF_WEEK, FREQUENCY_OPTIONS, INTERVAL_TYPES } from '../constants';
 import Modal from '../components/Modal';
 import { useModal } from '../hooks/useModal';
 
+const NumberStepper = ({ value, onChange, min = 1, max = 99, unit = '' }) => {
+  const num = Number(value) || 0;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <button
+        type="button"
+        className="btn btn--secondary"
+        style={{ width: '40px', height: '40px', padding: 0, fontSize: '20px', lineHeight: '1', borderRadius: '50%' }}
+        onClick={() => onChange(Math.max(min, num - 1))}
+        disabled={num <= min}
+      >
+        −
+      </button>
+      <span style={{ fontSize: '20px', fontWeight: 'bold', minWidth: '32px', textAlign: 'center' }}>{value || min}</span>
+      <button
+        type="button"
+        className="btn btn--secondary"
+        style={{ width: '40px', height: '40px', padding: 0, fontSize: '20px', lineHeight: '1', borderRadius: '50%' }}
+        onClick={() => onChange(Math.min(max, num + 1))}
+        disabled={num >= max}
+      >
+        +
+      </button>
+      {unit && <span style={{ fontSize: '14px', color: '#666' }}>{unit}</span>}
+    </div>
+  );
+};
+
 const ALL_STEPS = ['基本情報', '頻度設定', '時間・服用量', '確認'];
-const PRN_STEPS = ['基本情報', '頻度設定', '確認'];
+const PRN_STEPS = ['基本情報', '服用量', '確認'];
 
 const AddTaskPage = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -30,7 +58,11 @@ const AddTaskPage = () => {
 
   // 表示ステップ番号を実際のロジックステップに変換
   const getLogicStep = (displayStep) => {
-    if (isPrn && displayStep >= 2) return displayStep + 1;
+    if (isPrn) {
+      if (displayStep === 0) return 0; // 基本情報
+      if (displayStep === 1) return 2; // 服用量（時間・服用量ステップと同じロジック）
+      return 3; // 確認
+    }
     return displayStep;
   };
 
@@ -40,8 +72,9 @@ const AddTaskPage = () => {
     if (logicStep === 0) {
       if (!taskName.trim()) newErrors.taskName = '薬の名前を入力してください';
       if (!unit.trim()) newErrors.unit = '単位を入力してください';
+      if (isPrn && (doseAmount === '' || Number(doseAmount) < 1)) newErrors.doseAmount = '服用量を入力してください';
     }
-    if (logicStep === 1) {
+    if (logicStep === 1 && !isPrn) {
       if (!frequency) newErrors.frequency = '頻度を選択してください';
       if ((frequency === 'daily' || frequency === 'weekly') && (selectedDosage === '' || Number(selectedDosage) < 1)) {
         newErrors.selectedDosage = '摂取回数を入力してください';
@@ -49,16 +82,16 @@ const AddTaskPage = () => {
       if (frequency === 'weekly' && selectedDays.length === 0) {
         newErrors.selectedDays = '曜日を1つ以上選択してください';
       }
-      if (frequency === 'prn') {
-        if (doseAmount === '' || Number(doseAmount) < 1) newErrors.doseAmount = '服用量を入力してください';
-      }
       if (frequency === 'interval') {
         if (!intervalType) newErrors.intervalType = '間隔の種類を選択してください';
         if (!intervalValue || Number(intervalValue) <= 0) newErrors.intervalValue = '間隔の値を正しく入力してください';
       }
     }
     if (logicStep === 2) {
-      const hasEmptyTime = selectedTimes.some((t) => !t);
+      if (isPrn) {
+        if (doseAmount === '' || Number(doseAmount) < 1) newErrors.doseAmount = '服用量を入力してください';
+      }
+      const hasEmptyTime = !isPrn && selectedTimes.some((t) => !t);
       if (hasEmptyTime) newErrors.selectedTimes = 'すべての時間を設定してください';
       if (frequency === 'daily') {
         const count = selectedDosage || 1;
@@ -253,6 +286,19 @@ const AddTaskPage = () => {
               />
               {errors.unit && <span className="form-error">{errors.unit}</span>}
             </div>
+            <div className="form-group">
+              <label className="form-label">頓服薬ですか？</label>
+              <div className="radio-group">
+                <label className={`radio-card ${!isPrn ? 'radio-card--selected' : ''}`}>
+                  <input type="radio" name="isPrn" checked={!isPrn} onChange={() => { setFrequency(''); }} />
+                  <span className="radio-card__label">いいえ（定時薬）</span>
+                </label>
+                <label className={`radio-card ${isPrn ? 'radio-card--selected' : ''}`}>
+                  <input type="radio" name="isPrn" checked={isPrn} onChange={() => { setFrequency('prn'); }} />
+                  <span className="radio-card__label">はい（必要な時だけ）</span>
+                </label>
+              </div>
+            </div>
           </div>
         )}
 
@@ -262,7 +308,7 @@ const AddTaskPage = () => {
               <label className="form-label">頻度</label>
               {errors.frequency && <span className="form-error">{errors.frequency}</span>}
               <div className="radio-group">
-                {Object.entries(FREQUENCY_OPTIONS).map(([key, label]) => (
+                {Object.entries(FREQUENCY_OPTIONS).filter(([key]) => key !== 'prn').map(([key, label]) => (
                   <label key={key} className={`radio-card ${frequency === key ? 'radio-card--selected' : ''}`}>
                     <input
                       type="radio"
@@ -279,16 +325,8 @@ const AddTaskPage = () => {
 
             {frequency === 'daily' && (
               <div className="form-group">
-                <label className="form-label" htmlFor="dosage">1日の摂取回数</label>
-                <input
-                  id="dosage"
-                  type="number"
-                  className="form-input form-input--small"
-                  min="1"
-                  max="10"
-                  value={selectedDosage}
-                  onChange={(e) => handleDosageChange(e.target.value)}
-                />
+                <label className="form-label">1日の摂取回数</label>
+                <NumberStepper value={selectedDosage} onChange={handleDosageChange} max={10} unit="回" />
               </div>
             )}
 
@@ -307,26 +345,6 @@ const AddTaskPage = () => {
                       {day}
                     </button>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {frequency === 'prn' && (
-              <div className="form-group">
-                <label className="form-label" htmlFor="prnDose">1回あたりの服用量</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    id="prnDose"
-                    type="number"
-                    className="form-input form-input--small"
-                    min="1"
-                    value={doseAmount}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
-                    }}
-                  />
-                  <span style={{ fontSize: '14px', color: '#666' }}>{unit || '錠'}</span>
                 </div>
               </div>
             )}
@@ -375,61 +393,71 @@ const AddTaskPage = () => {
             {errors.doseAmounts && <span className="form-error">{errors.doseAmounts}</span>}
             {errors.doseAmount && <span className="form-error">{errors.doseAmount}</span>}
 
+            {isPrn && (
+              <div className="confirm-card" style={{ marginBottom: '12px', padding: '16px' }}>
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label className="form-label" htmlFor="prnTime">服用する時間帯</label>
+                  <input
+                    id="prnTime"
+                    type="time"
+                    className="form-input"
+                    value={selectedTimes[0] || ''}
+                    onChange={(e) => handleTimeChange(0, e.target.value)}
+                  />
+                  <span style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'block' }}>目安の時間（実際は服用時に記録されます）</span>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">1回あたりの服用量</label>
+                  <NumberStepper value={doseAmount} onChange={setDoseAmount} unit={unit || '錠'} />
+                </div>
+              </div>
+            )}
+
             {frequency === 'daily' && selectedTimes.map((time, index) => (
               <div key={index} className="confirm-card" style={{ marginBottom: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: '#666' }}>{index + 1}回目</h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label className="form-label" htmlFor={`time-${index}`}>時間</label>
                   <input
                     id={`time-${index}`}
                     type="time"
                     className="form-input"
-                    style={{ flex: '1', minWidth: '120px' }}
                     value={time}
                     onChange={(e) => handleTimeChange(index, e.target.value)}
                   />
-                  <input
-                    id={`dose-${index}`}
-                    type="number"
-                    className="form-input form-input--small"
-                    min="1"
-                    value={doseAmounts[index] ?? doseAmount}
-                    onChange={(e) => {
-                      const v = e.target.value;
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">服用量</label>
+                  <NumberStepper
+                    value={doseAmounts[index] ?? 1}
+                    onChange={(val) => {
                       setDoseAmounts((prev) => {
                         const next = [...prev];
-                        next[index] = v === '' ? '' : Math.max(1, Number(v));
+                        next[index] = val;
                         return next;
                       });
                     }}
+                    unit={unit || '錠'}
                   />
-                  <span style={{ fontSize: '14px', color: '#666' }}>{unit || '錠'}</span>
                 </div>
               </div>
             ))}
 
             {frequency === 'weekly' && (
               <div className="confirm-card" style={{ marginBottom: '12px', padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label className="form-label" htmlFor="weeklyTime">服用時間</label>
                   <input
                     id="weeklyTime"
                     type="time"
                     className="form-input"
-                    style={{ flex: '1', minWidth: '120px' }}
                     value={selectedTimes[0] || ''}
                     onChange={(e) => handleTimeChange(0, e.target.value)}
                   />
-                  <input
-                    id="weeklyDose"
-                    type="number"
-                    className="form-input form-input--small"
-                    min="1"
-                    value={doseAmount}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
-                    }}
-                  />
-                  <span style={{ fontSize: '14px', color: '#666' }}>{unit || '錠'}</span>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">服用量</label>
+                  <NumberStepper value={doseAmount} onChange={setDoseAmount} unit={unit || '錠'} />
                 </div>
               </div>
             )}
@@ -458,22 +486,8 @@ const AddTaskPage = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="intervalHourDose">服用量</label>
-                  {errors.doseAmount && <span className="form-error">{errors.doseAmount}</span>}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      id="intervalHourDose"
-                      type="number"
-                      className="form-input form-input--small"
-                      min="1"
-                      value={doseAmount}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
-                      }}
-                    />
-                    <span style={{ fontSize: '14px', color: '#666' }}>{unit || '錠'}</span>
-                  </div>
+                  <label className="form-label">服用量</label>
+                  <NumberStepper value={doseAmount} onChange={setDoseAmount} unit={unit || '錠'} />
                 </div>
               </>
             )}
@@ -502,22 +516,8 @@ const AddTaskPage = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="intervalDayDose">服用量</label>
-                  {errors.doseAmount && <span className="form-error">{errors.doseAmount}</span>}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      id="intervalDayDose"
-                      type="number"
-                      className="form-input form-input--small"
-                      min="1"
-                      value={doseAmount}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
-                      }}
-                    />
-                    <span style={{ fontSize: '14px', color: '#666' }}>{unit || '錠'}</span>
-                  </div>
+                  <label className="form-label">服用量</label>
+                  <NumberStepper value={doseAmount} onChange={setDoseAmount} unit={unit || '錠'} />
                 </div>
               </>
             )}

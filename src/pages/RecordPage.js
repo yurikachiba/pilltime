@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useAllDiary } from '../hooks/useMedications';
 import { MOOD_FACES } from '../constants';
+import { getLocalToday } from '../utils/dateUtils';
 import MoodFaceIcon from '../components/MoodFaceIcon';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
@@ -39,7 +40,19 @@ const RecordPage = () => {
         <meta name="description" content="日々の体調とメモの記録" />
       </Helmet>
 
-      <h1 className="page-title">日記</h1>
+      <div className="diary-page__header">
+        <h1 className="page-title">日記</h1>
+        <button
+          className="btn btn--primary diary-page__add-btn"
+          onClick={() => navigate(`/day-details/${getLocalToday()}`)}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          今日の日記を書く
+        </button>
+      </div>
 
       {entries.length === 0 ? (
         <EmptyState
@@ -52,7 +65,7 @@ const RecordPage = () => {
             </svg>
           }
           title="日記がありません"
-          description="カレンダーから日付を選んで、体調やメモを記録しましょう"
+          description="下のボタンから今日の体調やメモを記録しましょう"
         />
       ) : (
         <div className="diary-list">

@@ -1093,6 +1093,27 @@ body {
 }
 
 /* --- Diary Page --- */
+.diary-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diary-page__header .page-title {
+  margin-bottom: 0;
+}
+
+.diary-page__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  padding: 8px 16px;
+  white-space: nowrap;
+}
+
 .diary-list {
   display: flex;
   flex-direction: column;

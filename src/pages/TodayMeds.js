@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMedications } from '../hooks/useMedications';
 import { NOTIFICATION_MESSAGES } from '../constants';
 import { requestNotificationPermission, updateNotificationSchedules, showNotificationViaSW } from '../notifications';
@@ -10,7 +10,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
 const TodayMeds = () => {
-  const { medications, setMedications, loading, error } = useMedications();
+  const { medications, setMedications, loading, error, refetch } = useMedications();
+  const navigate = useNavigate();
   const [notificationSettings, setNotificationSettings] = useState(() => {
     const saved = localStorage.getItem('pilltime_notification_settings');
     return saved ? JSON.parse(saved) : {};
@@ -23,8 +24,10 @@ const TodayMeds = () => {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // 定時薬と頓服薬を分離
-  const scheduledMeds = medications.filter((med) => med.frequency !== 'prn');
+  // 定時薬と頓服薬を分離 + 時間順ソート
+  const scheduledMeds = medications
+    .filter((med) => med.frequency !== 'prn')
+    .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
   const hasPrnMeds = prnMeds.length > 0;
@@ -68,14 +71,12 @@ const TodayMeds = () => {
     localStorage.setItem(`takenMeds_${today}`, JSON.stringify(takenMeds));
   }, [takenMeds, today]);
 
-  // 通知設定をlocalStorageに永続化
   useEffect(() => {
     if (Object.keys(notificationSettings).length > 0) {
       localStorage.setItem('pilltime_notification_settings', JSON.stringify(notificationSettings));
     }
   }, [notificationSettings]);
 
-  // 通知スケジュールをService Workerに同期
   useEffect(() => {
     if (medications.length > 0 && Object.keys(notificationSettings).length > 0) {
       updateNotificationSchedules(medications, notificationSettings);
@@ -122,6 +123,32 @@ const TodayMeds = () => {
     );
   }, []);
 
+  const handleMarkAllTaken = useCallback(() => {
+    const allScheduledIds = scheduledMeds.map((m) => m.id);
+    const allTaken = allScheduledIds.every((id) => takenMeds.includes(id));
+    if (allTaken) {
+      // 全取り消し
+      setTakenMeds((prev) => prev.filter((id) => !allScheduledIds.includes(id)));
+    } else {
+      // 全服用
+      setTakenMeds((prev) => [...new Set([...prev, ...allScheduledIds])]);
+    }
+  }, [scheduledMeds, takenMeds]);
+
+  const handleDelete = useCallback(async (id) => {
+    try {
+      await api.delete(`/api/medications/${id}`);
+      refetch();
+    } catch {
+      // ignore
+    }
+  }, [refetch]);
+
+  const handleEdit = useCallback((med) => {
+    // 編集はadd-taskページに遷移（将来的にeditページを作る場合はここを変更）
+    navigate(`/add-task?edit=${med.id}`);
+  }, [navigate]);
+
   const handlePrnLog = useCallback(async (medId) => {
     try {
       const now = new Date();
@@ -152,9 +179,10 @@ const TodayMeds = () => {
     }
   }, []);
 
-  const takenCount = takenMeds.length;
+  const takenCount = takenMeds.filter((id) => scheduledMeds.some((m) => m.id === id)).length;
   const totalCount = scheduledMeds.length;
   const progress = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : 0;
+  const allTaken = totalCount > 0 && takenCount === totalCount;
 
   if (loading) return <LoadingSpinner message="お薬情報を読み込み中..." />;
 
@@ -225,22 +253,36 @@ const TodayMeds = () => {
       ) : (
         <>
           {scheduledMeds.length > 0 && (
-            <div className="med-list">
-              {scheduledMeds.map((med) => (
-                <MedicationCard
-                  key={med.id}
-                  med={med}
-                  notificationOn={notificationSettings[med.id]?.on || false}
-                  messageType={notificationSettings[med.id]?.messageType || 'default'}
-                  onToggleNotification={toggleNotification}
-                  onTimeChange={handleTimeChange}
-                  onMessageTypeChange={handleMessageTypeChange}
-                  onNotify={handleNotification}
-                  onMarkTaken={handleMarkTaken}
-                  isTaken={takenMeds.includes(med.id)}
-                />
-              ))}
-            </div>
+            <>
+              {scheduledMeds.length > 1 && (
+                <button
+                  type="button"
+                  className={`btn btn--full ${allTaken ? 'btn--secondary' : 'btn--primary'}`}
+                  style={{ marginBottom: '12px' }}
+                  onClick={handleMarkAllTaken}
+                >
+                  {allTaken ? '全て取り消す' : '全部飲んだ'}
+                </button>
+              )}
+              <div className="med-list">
+                {scheduledMeds.map((med) => (
+                  <MedicationCard
+                    key={med.id}
+                    med={med}
+                    notificationOn={notificationSettings[med.id]?.on || false}
+                    messageType={notificationSettings[med.id]?.messageType || 'default'}
+                    onToggleNotification={toggleNotification}
+                    onTimeChange={handleTimeChange}
+                    onMessageTypeChange={handleMessageTypeChange}
+                    onNotify={handleNotification}
+                    onMarkTaken={handleMarkTaken}
+                    onDelete={handleDelete}
+                    onEdit={handleEdit}
+                    isTaken={takenMeds.includes(med.id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
           {prnMeds.length > 0 && (
@@ -262,12 +304,26 @@ const TodayMeds = () => {
                           <h3 className="prn-card__name">{med.name}</h3>
                           <p className="prn-card__dose">1回 {med.doseAmount} {med.unit}</p>
                         </div>
-                        <button
-                          className="prn-card__log-btn"
-                          onClick={() => handlePrnLog(med.id)}
-                        >
-                          服用した
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            className="prn-card__log-btn"
+                            onClick={() => handlePrnLog(med.id)}
+                          >
+                            服用した
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(med.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#e53e3e' }}
+                            aria-label="削除"
+                            title="削除"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       {logs.length > 0 && (
                         <div className="prn-card__logs">

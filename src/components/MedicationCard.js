@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MESSAGE_TYPE_LABELS } from '../constants';
 
 const MedicationCard = ({
@@ -10,8 +10,23 @@ const MedicationCard = ({
   onMessageTypeChange,
   onNotify,
   onMarkTaken,
+  onDelete,
+  onEdit,
   isTaken,
 }) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = () => {
+    if (confirmDelete) {
+      onDelete?.(med.id);
+      setConfirmDelete(false);
+      setShowMenu(false);
+    } else {
+      setConfirmDelete(true);
+    }
+  };
+
   return (
     <div className={`med-card ${isTaken ? 'med-card--taken' : ''}`}>
       <div className="med-card__header">
@@ -24,14 +39,49 @@ const MedicationCard = ({
             }
           </p>
         </div>
-        <div className="med-card__time-badge">
-          <input
-            type="time"
-            value={med.time || ''}
-            onChange={(e) => onTimeChange(med.id, e)}
-            className="med-card__time-input"
-            aria-label={`${med.name}の服用時間`}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="med-card__time-badge">
+            <input
+              type="time"
+              value={med.time || ''}
+              onChange={(e) => onTimeChange(med.id, e)}
+              className="med-card__time-input"
+              aria-label={`${med.name}の服用時間`}
+            />
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => { setShowMenu(!showMenu); setConfirmDelete(false); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+              aria-label="メニュー"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+            {showMenu && (
+              <div style={{
+                position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: '8px',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.15)', zIndex: 10, minWidth: '120px', overflow: 'hidden',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => { onEdit?.(med); setShowMenu(false); }}
+                  style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px', color: confirmDelete ? 'white' : '#e53e3e', backgroundColor: confirmDelete ? '#e53e3e' : 'transparent' }}
+                >
+                  {confirmDelete ? '本当に削除' : '削除'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="med-card__actions">

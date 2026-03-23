@@ -65,23 +65,28 @@ const MyCalendar = () => {
 
   const events = useMemo(() => {
     const result = [];
+    const scheduledMeds = medications.filter((m) => m.frequency !== 'prn');
     const medMap = {};
     for (const med of medications) {
       medMap[med.id] = med;
     }
 
-    for (const [date, takenIds] of Object.entries(takenByDate)) {
-      if (!Array.isArray(takenIds)) continue;
-      for (const medId of takenIds) {
-        const med = medMap[medId];
-        if (!med) continue;
-        const day = moment(date).toDate();
+    // 過去の各日について、服用/未服用を判定
+    const today = moment();
+    for (let i = 0; i < 90; i++) {
+      const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
+      const takenIds = takenByDate[date] || [];
+      const day = moment(date).toDate();
+
+      for (const med of scheduledMeds) {
+        const taken = takenIds.includes(med.id);
         result.push({
-          title: `${med.name}`,
+          title: taken ? `${med.name}` : `${med.name}`,
           start: day,
           end: day,
           allDay: true,
           medId: med.id,
+          taken,
         });
       }
     }
@@ -93,9 +98,9 @@ const MyCalendar = () => {
     navigate(`/day-details/${formattedDate}`);
   };
 
-  const eventStyleGetter = () => ({
+  const eventStyleGetter = (event) => ({
     style: {
-      backgroundColor: '#4CAF50',
+      backgroundColor: event.taken ? '#4CAF50' : '#e53e3e',
       borderRadius: '4px',
       opacity: 0.9,
       color: 'white',

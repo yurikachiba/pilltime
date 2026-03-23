@@ -39,9 +39,13 @@ const AddTaskPage = () => {
     if (logicStep === 0) {
       if (!taskName.trim()) newErrors.taskName = '薬の名前を入力してください';
       if (!unit.trim()) newErrors.unit = '単位を入力してください';
+      if (doseAmount === '' || Number(doseAmount) < 1) newErrors.doseAmount = '服用量を入力してください';
     }
     if (logicStep === 1) {
       if (!frequency) newErrors.frequency = '頻度を選択してください';
+      if ((frequency === 'daily' || frequency === 'weekly') && (selectedDosage === '' || Number(selectedDosage) < 1)) {
+        newErrors.selectedDosage = '摂取回数を入力してください';
+      }
       if (frequency === 'weekly' && selectedDays.length === 0) {
         newErrors.selectedDays = '曜日を1つ以上選択してください';
       }
@@ -93,6 +97,10 @@ const AddTaskPage = () => {
   };
 
   const handleDosageChange = (value) => {
+    if (value === '') {
+      setSelectedDosage('');
+      return;
+    }
     const num = Math.max(1, Number(value));
     setSelectedDosage(num);
     setSelectedTimes((prev) => {
@@ -238,7 +246,10 @@ const AddTaskPage = () => {
                   className="form-input form-input--small"
                   min="1"
                   value={doseAmount}
-                  onChange={(e) => setDoseAmount(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
+                  }}
                 />
                 <span className="form-label" style={{ marginBottom: 0 }}>{unit || '錠'}</span>
               </div>

@@ -220,6 +220,23 @@ const AddTaskPage = () => {
     setErrors({});
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDeleteMed = async () => {
+    if (!editId) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      await api.delete(`/api/medications/${editId}`);
+      modal.showSuccess('お薬を削除しました');
+      setTimeout(() => navigate('/'), 800);
+    } catch {
+      modal.showError('削除に失敗しました');
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       const dailyDoseAmounts = frequency === 'daily' ? doseAmounts.slice(0, selectedDosage) : null;
@@ -599,6 +616,49 @@ const AddTaskPage = () => {
           <button type="button" className="btn btn--primary" onClick={handleSubmit}>{editId ? '更新する' : '登録する'}</button>
         )}
       </div>
+
+      {editId && (
+        <div style={{ marginTop: '24px', padding: '16px', borderTop: '1px solid var(--color-border)' }}>
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={handleDeleteMed}
+              style={{
+                width: '100%', padding: '12px', border: '1px solid #e53e3e', borderRadius: '8px',
+                background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontSize: '14px', fontWeight: '600',
+              }}
+            >
+              この薬を削除する
+            </button>
+          ) : (
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '12px' }}>
+                「{taskName}」を完全に削除します。服用記録は残りますが、今後の通知やタスクには表示されなくなります。
+              </p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="btn btn--secondary"
+                  style={{ flex: 1 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteMed}
+                  style={{
+                    flex: 1, padding: '12px', border: 'none', borderRadius: '9999px',
+                    background: '#e53e3e', color: 'white', cursor: 'pointer', fontSize: '15px', fontWeight: '600',
+                  }}
+                >
+                  削除する
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

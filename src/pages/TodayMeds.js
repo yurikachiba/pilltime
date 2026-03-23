@@ -21,6 +21,10 @@ const TodayMeds = () => {
     const saved = localStorage.getItem(`takenMeds_${new Date().toISOString().split('T')[0]}`);
     return saved ? JSON.parse(saved) : [];
   });
+  const [skippedMeds, setSkippedMeds] = useState(() => {
+    const saved = localStorage.getItem(`skippedMeds_${new Date().toISOString().split('T')[0]}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [prnLogs, setPrnLogs] = useState({});
 
   const today = new Date().toISOString().split('T')[0];
@@ -93,9 +97,23 @@ const TodayMeds = () => {
     requestNotificationPermission();
   }, []);
 
+  // Service Workerからの服用通知を受け取る
+  useEffect(() => {
+    const handler = (event) => {
+      const { medId } = event.detail;
+      setTakenMeds((prev) => prev.includes(medId) ? prev : [...prev, medId]);
+    };
+    window.addEventListener('med-taken-from-notification', handler);
+    return () => window.removeEventListener('med-taken-from-notification', handler);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(`takenMeds_${today}`, JSON.stringify(takenMeds));
   }, [takenMeds, today]);
+
+  useEffect(() => {
+    localStorage.setItem(`skippedMeds_${today}`, JSON.stringify(skippedMeds));
+  }, [skippedMeds, today]);
 
   useEffect(() => {
     if (Object.keys(notificationSettings).length > 0) {
@@ -113,11 +131,18 @@ const TodayMeds = () => {
     if (Notification.permission === 'granted') {
       const messageType = notificationSettings[med.id]?.messageType || 'default';
       const message = NOTIFICATION_MESSAGES[messageType] || NOTIFICATION_MESSAGES.default;
-      showNotificationViaSW(message, {
-        body: `${med.name}を${med.doseAmounts ? med.doseAmounts.join('/') : med.doseAmount} ${med.unit}服用してください`,
+      const dose = med.doseAmounts ? med.doseAmounts.join('/') : med.doseAmount;
+      showNotificationViaSW(`${med.name} ${dose}${med.unit}`, {
+        body: message,
         icon: '/logo192.png',
         badge: '/favicon-32x32.png',
-        vibrate: [200, 100, 200, 100, 200],
+        vibrate: [200, 100, 200, 100, 300],
+        requireInteraction: true,
+        silent: false,
+        actions: [
+          { action: 'take', title: '飲んだ' },
+        ],
+        data: { medId: med.id, url: '/' },
       });
     }
   }, [notificationSettings]);
@@ -163,6 +188,16 @@ const TodayMeds = () => {
     setTakenMeds((prev) =>
       prev.includes(id) ? prev.filter((mid) => mid !== id) : [...prev, id]
     );
+    // 服用したらスキップを解除
+    setSkippedMeds((prev) => prev.filter((mid) => mid !== id));
+  }, []);
+
+  const handleSkip = useCallback((id) => {
+    setSkippedMeds((prev) =>
+      prev.includes(id) ? prev.filter((mid) => mid !== id) : [...prev, id]
+    );
+    // スキップしたら服用を解除
+    setTakenMeds((prev) => prev.filter((mid) => mid !== id));
   }, []);
 
   const handleMarkAllTaken = useCallback(() => {
@@ -181,8 +216,19 @@ const TodayMeds = () => {
     try {
       const originalId = id.includes('_') ? id.split('_')[0] : id;
       await api.delete(`/api/medications/${originalId}`);
-      // takenMedsから該当薬のIDを除去（展開後IDも含む）
+      // takenMeds・skippedMedsから該当薬のIDを除去（展開後IDも含む）
       setTakenMeds((prev) => prev.filter((tid) => tid !== originalId && !tid.startsWith(`${originalId}_`)));
+      setSkippedMeds((prev) => prev.filter((tid) => tid !== originalId && !tid.startsWith(`${originalId}_`)));
+      // 通知設定もクリーンアップ
+      setNotificationSettings((prev) => {
+        const updated = { ...prev };
+        delete updated[originalId];
+        // 展開IDも削除
+        Object.keys(updated).forEach((key) => {
+          if (key.startsWith(`${originalId}_`)) delete updated[key];
+        });
+        return updated;
+      });
       refetch();
     } catch {
       // ignore
@@ -235,9 +281,11 @@ const TodayMeds = () => {
   }, []);
 
   const takenCount = takenMeds.filter((id) => scheduledMeds.some((m) => m.id === id)).length;
+  const skippedCount = skippedMeds.filter((id) => scheduledMeds.some((m) => m.id === id)).length;
   const totalCount = scheduledMeds.length;
-  const progress = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : 0;
-  const allTaken = totalCount > 0 && takenCount === totalCount;
+  const handledCount = takenCount + skippedCount;
+  const progress = totalCount > 0 ? Math.round((handledCount / totalCount) * 100) : 0;
+  const allTaken = totalCount > 0 && handledCount === totalCount;
 
   if (loading) return <LoadingSpinner message="お薬情報を読み込み中..." />;
 
@@ -262,19 +310,21 @@ const TodayMeds = () => {
           <h1 className="page-title">今日のお薬</h1>
           <div className="today-meds__links">
             <Link to="/records" className="today-meds__link" aria-label="記録">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
+              <span>記録</span>
             </Link>
             <Link to="/data" className="today-meds__link" aria-label="データ管理">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 3v18" />
                 <rect x="4" y="8" width="6" height="7" rx="1" />
                 <rect x="14" y="5" width="6" height="10" rx="1" />
               </svg>
+              <span>データ</span>
             </Link>
           </div>
         </div>
@@ -290,7 +340,9 @@ const TodayMeds = () => {
           <div className="progress-bar__track">
             <div className="progress-bar__fill" style={{ width: `${progress}%` }} />
           </div>
-          <p className="progress-bar__label">{takenCount}/{totalCount} 服用済み ({progress}%)</p>
+          <p className="progress-bar__label">
+            {takenCount}服用{skippedCount > 0 ? ` / ${skippedCount}スキップ` : ''} / {totalCount}件中 ({progress}%)
+          </p>
         </div>
       )}
 
@@ -331,9 +383,11 @@ const TodayMeds = () => {
                     onMessageTypeChange={handleMessageTypeChange}
                     onNotify={handleNotification}
                     onMarkTaken={handleMarkTaken}
+                    onSkip={handleSkip}
                     onDelete={handleDelete}
                     onEdit={handleEdit}
                     isTaken={takenMeds.includes(med.id)}
+                    isSkipped={skippedMeds.includes(med.id)}
                   />
                 ))}
               </div>
@@ -359,14 +413,12 @@ const TodayMeds = () => {
                           <h3 className="prn-card__name">{med.name}</h3>
                           <p className="prn-card__dose">1回 {med.doseAmount} {med.unit}</p>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div className="prn-card__controls">
                           <input
                             type="time"
-                            className="form-input"
-                            style={{ width: '110px', fontSize: '14px' }}
+                            className="prn-card__time-input"
                             value={prnTimeInputs[med.id] || ''}
                             onChange={(e) => setPrnTimeInputs((prev) => ({ ...prev, [med.id]: e.target.value }))}
-                            placeholder="今"
                           />
                           <button
                             className="prn-card__log-btn"
@@ -376,15 +428,10 @@ const TodayMeds = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(med.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#e53e3e' }}
-                            aria-label="削除"
-                            title="削除"
+                            className="prn-card__edit-btn"
+                            onClick={() => handleEdit(med)}
                           >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
+                            編集
                           </button>
                         </div>
                       </div>
@@ -400,13 +447,9 @@ const TodayMeds = () => {
                                 <button
                                   className="prn-card__log-delete"
                                   onClick={() => handleDeletePrnLog(med.id, log.timestamp)}
-                                  aria-label="この記録を削除"
-                                  title="削除"
+                                  aria-label="この記録を取消"
                                 >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                  </svg>
+                                  取消
                                 </button>
                               </li>
                             ))}

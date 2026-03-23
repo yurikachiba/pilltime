@@ -21,17 +21,46 @@ export async function registerServiceWorker() {
     // Service Workerにチェッカー開始を指示
     sendToSW({ type: 'START_CHECKER' });
 
+    // Periodic Background Syncを登録（対応ブラウザのみ）
+    try {
+      if ('periodicSync' in swRegistration) {
+        await swRegistration.periodicSync.register('check-medications', {
+          minInterval: 60 * 1000, // 最短1分間隔
+        });
+      }
+    } catch {
+      // Periodic Sync非対応 or 権限なし - setIntervalフォールバックで対応
+    }
+
     // 保存済みスケジュールがあればSWに即送信（controller確立後に確実に届ける）
     const saved = getSchedulesFromStorage();
     if (saved.length > 0) {
       sendToSW({ type: 'UPDATE_SCHEDULES', data: saved });
     }
 
-    // Service Workerからのスケジュール要求に応答
+    // Service Workerからのメッセージに応答
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'REQUEST_SCHEDULES') {
         const schedules = getSchedulesFromStorage();
         sendToSW({ type: 'SCHEDULES_RESPONSE', data: schedules });
+      }
+
+      // 通知から服用記録された場合、localStorageを同期
+      if (event.data?.type === 'MED_TAKEN_FROM_NOTIFICATION') {
+        const medId = event.data.medId;
+        const today = new Date().toISOString().split('T')[0];
+        const key = `takenMeds_${today}`;
+        try {
+          const existing = JSON.parse(localStorage.getItem(key) || '[]');
+          if (!existing.includes(medId)) {
+            existing.push(medId);
+            localStorage.setItem(key, JSON.stringify(existing));
+          }
+        } catch {
+          // ignore
+        }
+        // カスタムイベントを発火してReactコンポーネントに通知
+        window.dispatchEvent(new CustomEvent('med-taken-from-notification', { detail: { medId } }));
       }
     });
 
@@ -79,8 +108,8 @@ export function updateNotificationSchedules(medications, notificationSettings) {
       schedules.push({
         medId: med.id,
         time,
-        title: getNotificationTitle(messageType),
-        body: `${med.name}を${dose} ${med.unit}服用してください`,
+        title: `${med.name} ${dose}${med.unit}`,
+        body: getNotificationTitle(messageType),
       });
     }
   }
@@ -96,10 +125,8 @@ export function updateNotificationSchedules(medications, notificationSettings) {
 
 function getNotificationTitle(messageType) {
   const titles = {
-    default: 'お薬を飲む時間です！',
-    mom: 'ハニー、お薬を忘れずに飲んでね！',
-    dad: 'チャンプ、お薬を飲む時間だ！',
-    cat: 'にゃー！お薬の時間だよ！',
+    default: 'お薬の時間です',
+    reminder: 'お薬を忘れずに',
   };
   return titles[messageType] || titles.default;
 }

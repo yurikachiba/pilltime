@@ -1,17 +1,13 @@
 export const DAYS_OF_WEEK = ['月', '火', '水', '木', '金', '土', '日'];
 
 export const NOTIFICATION_MESSAGES = {
-  default: 'お薬を飲む時間です！',
-  mom: 'ハニー、お薬を忘れずに飲んでね！',
-  dad: 'チャンプ、お薬を飲む時間だ！',
-  cat: 'にゃー！お薬の時間だよ！',
+  default: 'お薬の時間です',
+  reminder: 'お薬を忘れずに',
 };
 
 export const MESSAGE_TYPE_LABELS = {
-  default: 'デフォルト',
-  mom: 'おかん風',
-  dad: 'オヤジ風',
-  cat: '猫風',
+  default: '標準',
+  reminder: 'リマインド',
 };
 
 export const FREQUENCY_OPTIONS = {

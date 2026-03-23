@@ -2,11 +2,10 @@ import React, { useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
-import { useQuery } from '@tanstack/react-query';
 import moment from 'moment';
 import 'moment/locale/ja';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { api } from '../api/client';
+import { useMedications } from '../hooks/useMedications';
 
 moment.locale('ja');
 
@@ -34,40 +33,29 @@ const localizer = momentLocalizer(moment);
 const MyCalendar = () => {
   const navigate = useNavigate();
 
-  const { data: medications = [] } = useQuery({
-    queryKey: ['medications'],
-    queryFn: () => api.get('/api/medications'),
-  });
+  const { medications } = useMedications();
 
-  const { data: takenByDate = {} } = useQuery({
-    queryKey: ['takenByDate'],
-    staleTime: 0,
-    queryFn: () => {
-      const taken = {};
-      const today = moment();
-      for (let i = 0; i < 90; i++) {
-        const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
-        const raw = localStorage.getItem(`takenMeds_${date}`);
-        if (raw) {
-          try {
-            taken[date] = JSON.parse(raw);
-          } catch {
-            // ignore
-          }
+  const takenByDate = useMemo(() => {
+    const taken = {};
+    const today = moment();
+    for (let i = 0; i < 90; i++) {
+      const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
+      const raw = localStorage.getItem(`takenMeds_${date}`);
+      if (raw) {
+        try {
+          taken[date] = JSON.parse(raw);
+        } catch {
+          // ignore
         }
       }
-      return taken;
-    },
-  });
+    }
+    return taken;
+  }, []);
 
-  const { data: allPrnLogs = {} } = useQuery({
-    queryKey: ['allPrnLogs'],
-    staleTime: 0,
-    queryFn: () => {
-      const raw = localStorage.getItem('pilltime_prn_logs');
-      return raw ? JSON.parse(raw) : {};
-    },
-  });
+  const allPrnLogs = useMemo(() => {
+    const raw = localStorage.getItem('pilltime_prn_logs');
+    return raw ? JSON.parse(raw) : {};
+  }, []);
 
   const events = useMemo(() => {
     const result = [];

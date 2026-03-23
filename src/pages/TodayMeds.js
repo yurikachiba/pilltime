@@ -109,6 +109,15 @@ const TodayMeds = () => {
 
   useEffect(() => {
     localStorage.setItem(`takenMeds_${today}`, JSON.stringify(takenMeds));
+    // dayDetails側にも同期（日別詳細ページとの整合性）
+    try {
+      const allDetails = JSON.parse(localStorage.getItem('pilltime_day_details') || '{}');
+      if (!allDetails[today]) allDetails[today] = {};
+      allDetails[today].takenMedications = takenMeds;
+      localStorage.setItem('pilltime_day_details', JSON.stringify(allDetails));
+    } catch {
+      // ignore
+    }
   }, [takenMeds, today]);
 
   useEffect(() => {

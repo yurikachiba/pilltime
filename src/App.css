@@ -166,29 +166,8 @@ body {
   transform: scale(1.1);
 }
 
-.bottom-nav__item--add {
-  position: relative;
-  top: -8px;
-  background: var(--color-bg);
-  color: var(--color-text-light);
-  border-radius: var(--radius-full);
-  width: 52px;
-  height: 52px;
-  padding: 0;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border: 2px solid var(--color-border);
-}
-
-.bottom-nav__item--add span {
-  display: none;
-}
-
 .bottom-nav__item--add.bottom-nav__item--active {
-  color: #fff;
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+  color: var(--color-primary);
 }
 
 /* --- Today Meds --- */
@@ -1481,35 +1460,6 @@ body {
 
   .bottom-nav__item--active svg {
     transform: none;
-  }
-
-  .bottom-nav__item--add {
-    position: static;
-    top: auto;
-    background: var(--color-bg);
-    color: var(--color-text-light);
-    border-radius: var(--radius-md);
-    width: auto;
-    height: auto;
-    padding: 12px 20px;
-    justify-content: flex-start;
-    box-shadow: none;
-    border: none;
-    margin: 8px 8px 0;
-  }
-
-  .bottom-nav__item--add span {
-    display: inline;
-  }
-
-  .bottom-nav__item--add:hover {
-    background: var(--color-primary);
-    color: #fff;
-  }
-
-  .bottom-nav__item--add.bottom-nav__item--active {
-    background: var(--color-primary);
-    color: #fff;
   }
 
   /* Main Content */

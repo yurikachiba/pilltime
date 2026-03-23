@@ -1,32 +1,27 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { useAllRecords } from '../hooks/useMedications';
+import { useAllDiary } from '../hooks/useMedications';
+import { MOOD_FACES } from '../constants';
+import MoodFaceIcon from '../components/MoodFaceIcon';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
-// 日付ごとにレコードをグループ化
-function groupByDate(records) {
-  const groups = {};
-  for (const record of records) {
-    const date = record.date;
-    if (!groups[date]) groups[date] = [];
-    groups[date].push(record);
+// 日付を読みやすい形式にフォーマット
+function formatDate(dateStr) {
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+  } catch {
+    return dateStr;
   }
-  // 日付の新しい順にソート
-  return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
 }
 
-const STATUS_LABELS = {
-  taken: '服用済み',
-  skipped: 'スキップ',
-};
-
 const RecordPage = () => {
-  const { records, loading, error } = useAllRecords();
+  const { entries, loading, error } = useAllDiary();
   const navigate = useNavigate();
 
-  if (loading) return <LoadingSpinner message="記録を読み込み中..." />;
+  if (loading) return <LoadingSpinner message="日記を読み込み中..." />;
 
   if (error) {
     return (
@@ -37,76 +32,58 @@ const RecordPage = () => {
     );
   }
 
-  const grouped = groupByDate(records);
-
   return (
-    <div className="record-page">
+    <div className="diary-page">
       <Helmet>
-        <title>服用記録 - PillTime</title>
-        <meta name="description" content="過去のお薬の服用記録を確認" />
+        <title>日記 - PillTime</title>
+        <meta name="description" content="日々の体調とメモの記録" />
       </Helmet>
 
-      <h1 className="page-title">服用記録</h1>
+      <h1 className="page-title">日記</h1>
 
-      {grouped.length === 0 ? (
+      {entries.length === 0 ? (
         <EmptyState
           icon={
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
           }
-          title="記録がありません"
-          description="お薬を服用すると、ここに記録が表示されます"
+          title="日記がありません"
+          description="カレンダーから日付を選んで、体調やメモを記録しましょう"
         />
       ) : (
-        <div className="record-list">
-          {grouped.map(([date, dayRecords]) => (
-            <div key={date} className="record-date-group">
-              <h2
-                className="record-date-group__header"
-                onClick={() => navigate(`/day-details/${date}`)}
+        <div className="diary-list">
+          {entries.map((entry) => {
+            const face = entry.mood ? MOOD_FACES[entry.mood] : null;
+            return (
+              <div
+                key={entry.date}
+                className="diary-card"
+                onClick={() => navigate(`/day-details/${entry.date}`)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') navigate(`/day-details/${date}`);
+                  if (e.key === 'Enter') navigate(`/day-details/${entry.date}`);
                 }}
               >
-                {date}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </h2>
-              {dayRecords.map((record) => (
-                <div key={record.id} className="record-card">
-                  <div className="record-card__icon">
-                    {record.status === 'taken' ? (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="15" y1="9" x2="9" y2="15" />
-                        <line x1="9" y1="9" x2="15" y2="15" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="record-card__content">
-                    <h3 className="record-card__name">{record.name}</h3>
-                    <p className="record-card__detail">
-                      {record.doseAmount}{record.unit}
-                      {record.time && ` ・ ${record.time}`}
-                      {' ・ '}
-                      <span className={`record-card__status record-card__status--${record.status}`}>
-                        {STATUS_LABELS[record.status] || record.status}
-                      </span>
-                    </p>
-                  </div>
+                <div className="diary-card__header">
+                  <span className="diary-card__date">{formatDate(entry.date)}</span>
+                  {face && (
+                    <span className="diary-card__mood">
+                      <MoodFaceIcon type={face.icon} size={24} />
+                      <span className="diary-card__mood-label">{face.label}</span>
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          ))}
+                {entry.notes && (
+                  <p className="diary-card__notes">{entry.notes}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

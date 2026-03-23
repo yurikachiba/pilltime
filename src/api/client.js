@@ -206,6 +206,25 @@ async function localRequest(endpoint, options = {}) {
     return allRecords;
   }
 
+  // GET /api/all-diary（全日付の日記データを返す）
+  if (method === 'GET' && endpoint === '/api/all-diary') {
+    const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+    const diaryEntries = [];
+    for (const [date, dayData] of Object.entries(allDetails)) {
+      // mood・notesが設定されている日のみ
+      if (dayData.mood || dayData.notes) {
+        diaryEntries.push({
+          date,
+          mood: dayData.mood || null,
+          notes: dayData.notes || '',
+        });
+      }
+    }
+    // 新しい日付順にソート
+    diaryEntries.sort((a, b) => b.date.localeCompare(a.date));
+    return diaryEntries;
+  }
+
   // GET /api/day-details/:date
   if (method === 'GET' && endpoint.startsWith('/api/day-details/')) {
     const date = endpoint.replace('/api/day-details/', '');

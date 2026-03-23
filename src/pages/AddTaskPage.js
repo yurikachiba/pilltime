@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { DAYS_OF_WEEK, FREQUENCY_OPTIONS, INTERVAL_TYPES } from '../constants';
 import Modal from '../components/Modal';
@@ -37,6 +38,10 @@ const ALL_STEPS = ['基本情報', '頻度設定', '時間・服用量', '確認
 const PRN_STEPS = ['基本情報', '服用量', '確認'];
 
 const AddTaskPage = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const editId = searchParams.get('edit');
+
   const [currentStep, setCurrentStep] = useState(0);
   const [taskName, setTaskName] = useState('');
   const [unit, setUnit] = useState('');
@@ -51,7 +56,36 @@ const AddTaskPage = () => {
   const [endTime, setEndTime] = useState('');
   const [startDate, setStartDate] = useState('');
   const [errors, setErrors] = useState({});
+  const [loaded, setLoaded] = useState(false);
   const modal = useModal();
+
+  // 編集モード: 既存データを読み込み
+  useEffect(() => {
+    if (!editId || loaded) return;
+    const loadMed = async () => {
+      try {
+        const meds = await api.get('/api/medications');
+        const med = meds.find((m) => m.id === editId);
+        if (!med) return;
+        setTaskName(med.name || '');
+        setUnit(med.unit || '');
+        setFrequency(med.frequency || '');
+        setDoseAmount(med.doseAmount || 1);
+        setDoseAmounts(med.doseAmounts || [med.doseAmount || 1]);
+        setSelectedTimes(med.selectedTimes || ['']);
+        setSelectedDosage(med.timesPerDay || 1);
+        setSelectedDays(med.selectedDays || []);
+        setIntervalType(med.intervalType || '');
+        setIntervalValue(med.intervalValue || '');
+        setEndTime(med.endTime || '');
+        setStartDate(med.startDate || '');
+        setLoaded(true);
+      } catch {
+        // ignore
+      }
+    };
+    loadMed();
+  }, [editId, loaded]);
 
   const isPrn = frequency === 'prn';
   const STEPS = isPrn ? PRN_STEPS : ALL_STEPS;
@@ -215,11 +249,17 @@ const AddTaskPage = () => {
           payload.startDate = startDate;
         }
       }
-      await api.post('/api/tasks', payload);
-      modal.showSuccess('タスクが保存されました！');
-      resetForm();
+      if (editId) {
+        await api.put(`/api/medications/${editId}`, payload);
+        modal.showSuccess('お薬を更新しました！');
+        setTimeout(() => navigate('/'), 1000);
+      } else {
+        await api.post('/api/tasks', payload);
+        modal.showSuccess('タスクが保存されました！');
+        resetForm();
+      }
     } catch {
-      modal.showError('申し訳ございません。タスクの追加に失敗しました。');
+      modal.showError('申し訳ございません。保存に失敗しました。');
     }
   };
 
@@ -242,13 +282,13 @@ const AddTaskPage = () => {
   return (
     <div className="add-task">
       <Helmet>
-        <title>お薬を追加 - PillTime</title>
+        <title>{editId ? 'お薬を編集' : 'お薬を追加'} - PillTime</title>
         <meta name="description" content="新しいお薬のスケジュールを追加" />
       </Helmet>
 
       <Modal isOpen={modal.isOpen} message={modal.message} type={modal.type} onClose={modal.close} />
 
-      <h1 className="page-title">お薬を追加</h1>
+      <h1 className="page-title">{editId ? 'お薬を編集' : 'お薬を追加'}</h1>
 
       <div className="stepper">
         {STEPS.map((label, index) => (
@@ -556,7 +596,7 @@ const AddTaskPage = () => {
         {currentStep < STEPS.length - 1 ? (
           <button type="button" className="btn btn--primary" onClick={nextStep}>次へ</button>
         ) : (
-          <button type="button" className="btn btn--primary" onClick={handleSubmit}>登録する</button>
+          <button type="button" className="btn btn--primary" onClick={handleSubmit}>{editId ? '更新する' : '登録する'}</button>
         )}
       </div>
     </div>

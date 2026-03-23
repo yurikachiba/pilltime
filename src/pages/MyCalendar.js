@@ -59,6 +59,14 @@ const MyCalendar = () => {
     },
   });
 
+  const { data: allPrnLogs = {} } = useQuery({
+    queryKey: ['allPrnLogs'],
+    queryFn: () => {
+      const raw = localStorage.getItem('pilltime_prn_logs');
+      return raw ? JSON.parse(raw) : {};
+    },
+  });
+
   const events = useMemo(() => {
     const result = [];
     const scheduledMeds = medications.filter((m) => m.frequency !== 'prn');
@@ -74,20 +82,65 @@ const MyCalendar = () => {
       const takenIds = takenByDate[date] || [];
       const day = moment(date).toDate();
 
+      const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][moment(date).day()];
+
       for (const med of scheduledMeds) {
-        const taken = takenIds.includes(med.id);
+        // 登録日より前は表示しない
+        if (med.createdAt && date < med.createdAt.split('T')[0]) continue;
+        // weekly: 対象曜日のみ
+        if (med.frequency === 'weekly' && med.selectedDays && !med.selectedDays.includes(dayOfWeek)) continue;
+        // interval(日): 対象日のみ
+        if (med.frequency === 'interval' && med.intervalType === 'day' && med.startDate && med.intervalValue) {
+          const diffDays = moment(date).diff(moment(med.startDate), 'days');
+          if (diffDays < 0 || diffDays % Number(med.intervalValue) !== 0) continue;
+        }
+
+        // 1日複数回の薬は時間ごとに展開
+        if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
+          for (let ti = 0; ti < med.selectedTimes.length; ti++) {
+            const timeId = `${med.id}_${ti}`;
+            const taken = takenIds.includes(timeId);
+            result.push({
+              title: `${med.name} ${med.selectedTimes[ti]}`,
+              start: day, end: day, allDay: true,
+              medId: timeId, taken,
+            });
+          }
+        } else {
+          const taken = takenIds.includes(med.id);
+          result.push({
+            title: med.name,
+            start: day, end: day, allDay: true,
+            medId: med.id, taken,
+          });
+        }
+      }
+    }
+    // 頓服の服用記録を追加
+    const prnMeds = medications.filter((m) => m.frequency === 'prn');
+    for (const med of prnMeds) {
+      const logs = allPrnLogs[med.id] || [];
+      const logsByDate = {};
+      for (const log of logs) {
+        if (!logsByDate[log.date]) logsByDate[log.date] = 0;
+        logsByDate[log.date]++;
+      }
+      for (const [date, count] of Object.entries(logsByDate)) {
+        const day = moment(date).toDate();
         result.push({
-          title: taken ? `${med.name}` : `${med.name}`,
+          title: `${med.name} (${count}回)`,
           start: day,
           end: day,
           allDay: true,
           medId: med.id,
-          taken,
+          taken: true,
+          isPrn: true,
         });
       }
     }
+
     return result;
-  }, [medications, takenByDate]);
+  }, [medications, takenByDate, allPrnLogs]);
 
   const handleDateSelect = (date) => {
     const formattedDate = moment(date).format('YYYY-MM-DD');
@@ -96,7 +149,7 @@ const MyCalendar = () => {
 
   const eventStyleGetter = (event) => ({
     style: {
-      backgroundColor: event.taken ? '#4CAF50' : '#e53e3e',
+      backgroundColor: event.isPrn ? '#f59e0b' : event.taken ? '#4CAF50' : '#e53e3e',
       borderRadius: '4px',
       opacity: 0.9,
       color: 'white',

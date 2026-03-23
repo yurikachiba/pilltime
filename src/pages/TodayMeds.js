@@ -25,9 +25,37 @@ const TodayMeds = () => {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // 定時薬と頓服薬を分離 + 時間順ソート
+  // 今日の曜日（月=0, 日=6に変換）
+  const todayDayIndex = new Date().getDay(); // 0=日, 1=月, ...
+  const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+  const todayDayName = dayNames[todayDayIndex];
+
+  // 定時薬を時間ごとに展開 + 今日対象のもののみ + 時間順ソート
   const scheduledMeds = medications
-    .filter((med) => med.frequency !== 'prn')
+    .filter((med) => {
+      if (med.frequency === 'prn') return false;
+      if (med.frequency === 'weekly' && med.selectedDays && !med.selectedDays.includes(todayDayName)) return false;
+      if (med.frequency === 'interval' && med.intervalType === 'day' && med.startDate && med.intervalValue) {
+        const start = new Date(med.startDate);
+        const now = new Date(today);
+        const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0 || diffDays % Number(med.intervalValue) !== 0) return false;
+      }
+      return true;
+    })
+    .flatMap((med) => {
+      if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
+        return med.selectedTimes.map((t, i) => ({
+          ...med,
+          id: `${med.id}_${i}`,
+          _originalId: med.id,
+          _timeIndex: i,
+          time: t,
+          doseAmount: med.doseAmounts?.[i] ?? med.doseAmount,
+        }));
+      }
+      return [{ ...med, _originalId: med.id, _timeIndex: 0 }];
+    })
     .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
@@ -45,11 +73,12 @@ const TodayMeds = () => {
   }, [fetchedPrnLogs]);
 
   useEffect(() => {
-    if (medications.length > 0) {
+    if (scheduledMeds.length > 0 || prnMeds.length > 0) {
       setNotificationSettings((prev) => {
         const updated = { ...prev };
         let changed = false;
-        for (const med of medications) {
+        const allMeds = [...scheduledMeds, ...prnMeds];
+        for (const med of allMeds) {
           if (!updated[med.id]) {
             updated[med.id] = { on: true, messageType: 'default' };
             changed = true;
@@ -58,7 +87,7 @@ const TodayMeds = () => {
         return changed ? updated : prev;
       });
     }
-  }, [medications]);
+  }, [scheduledMeds, prnMeds]);
 
   useEffect(() => {
     requestNotificationPermission();
@@ -100,11 +129,27 @@ const TodayMeds = () => {
     }));
   }, []);
 
-  const handleTimeChange = useCallback((id, event) => {
+  const handleTimeChange = useCallback(async (id, event) => {
     const newTime = event.target.value;
+    // UIを即座に更新
     setMedications((prev) =>
       prev.map((med) => (med.id === id ? { ...med, time: newTime } : med))
     );
+    // localStorageに保存
+    const originalId = id.includes('_') ? id.split('_')[0] : id;
+    const timeIndex = id.includes('_') ? Number(id.split('_')[1]) : 0;
+    try {
+      const allMeds = await api.get('/api/medications');
+      const med = allMeds.find((m) => m.id === originalId);
+      if (med) {
+        const newSelectedTimes = [...(med.selectedTimes || [med.time])];
+        newSelectedTimes[timeIndex] = newTime;
+        const update = { selectedTimes: newSelectedTimes, time: newSelectedTimes[0] };
+        await api.put(`/api/medications/${originalId}`, update);
+      }
+    } catch {
+      // ignore
+    }
   }, [setMedications]);
 
   const handleMessageTypeChange = useCallback((id, event) => {
@@ -134,7 +179,10 @@ const TodayMeds = () => {
 
   const handleDelete = useCallback(async (id) => {
     try {
-      await api.delete(`/api/medications/${id}`);
+      const originalId = id.includes('_') ? id.split('_')[0] : id;
+      await api.delete(`/api/medications/${originalId}`);
+      // takenMedsから該当薬のIDを除去（展開後IDも含む）
+      setTakenMeds((prev) => prev.filter((tid) => tid !== originalId && !tid.startsWith(`${originalId}_`)));
       refetch();
     } catch {
       // ignore
@@ -142,8 +190,8 @@ const TodayMeds = () => {
   }, [refetch]);
 
   const handleEdit = useCallback((med) => {
-    // 編集はadd-taskページに遷移（将来的にeditページを作る場合はここを変更）
-    navigate(`/add-task?edit=${med.id}`);
+    const originalId = med._originalId || med.id;
+    navigate(`/add-task?edit=${originalId}`);
   }, [navigate]);
 
   const [prnTimeInputs, setPrnTimeInputs] = useState({});

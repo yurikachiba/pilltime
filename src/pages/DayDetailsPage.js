@@ -36,7 +36,20 @@ const DayDetailsPage = () => {
     fetchPrnLogs();
   }, [date]);
 
-  const scheduledMeds = medications.filter((med) => med.frequency !== 'prn');
+  const scheduledMeds = medications
+    .filter((med) => med.frequency !== 'prn')
+    .flatMap((med) => {
+      if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
+        return med.selectedTimes.map((t, i) => ({
+          ...med,
+          id: `${med.id}_${i}`,
+          _originalId: med.id,
+          time: t,
+          doseAmount: med.doseAmounts?.[i] ?? med.doseAmount,
+        }));
+      }
+      return [med];
+    });
   const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
   // 頓服ログエントリーのフラット化（表示用）
@@ -161,7 +174,7 @@ const DayDetailsPage = () => {
                     </svg>
                   )}
                 </span>
-                <span className="med-check__name">{medication.name}（{medication.doseAmounts && medication.doseAmounts.some((d, i, arr) => d !== arr[0]) ? medication.doseAmounts.join('/') : medication.doseAmount} {medication.unit}）</span>
+                <span className="med-check__name">{medication.name}{medication.time ? ` ${medication.time}` : ''}（{medication.doseAmount} {medication.unit}）</span>
               </label>
             ))}
           </div>

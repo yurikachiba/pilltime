@@ -48,8 +48,8 @@ function migrateToRecords() {
     medMap[med.id] = med;
   }
 
-  const today = new Date().toISOString().split('T')[0];
-  const migratedRecords = [];
+  // 日付ごとにレコードを分類するためのマップ
+  const recordsByDate = {};
 
   // takenMeds_{DATE} と skippedMeds_{DATE} を変換
   const keysToProcess = [];
@@ -72,12 +72,16 @@ function migrateToRecords() {
         const { originalId, timeIndex } = parseExpandedId(id, medMap);
         const med = medMap[originalId];
 
-        migratedRecords.push({
+        // 削除済みの薬はスキップ（記録を「不明な薬」として残さない）
+        if (!med) continue;
+
+        if (!recordsByDate[date]) recordsByDate[date] = [];
+        recordsByDate[date].push({
           id: generateId(),
-          name: med?.name || '不明な薬',
-          doseAmount: med?.doseAmounts?.[timeIndex] ?? med?.doseAmount ?? 1,
-          unit: med?.unit || '',
-          time: med?.selectedTimes?.[timeIndex] || med?.time || '',
+          name: med.name,
+          doseAmount: med.doseAmounts?.[timeIndex] ?? med.doseAmount ?? 1,
+          unit: med.unit || '',
+          time: med.selectedTimes?.[timeIndex] || med.time || '',
           status,
           type: 'scheduled',
           timestamp: new Date(`${date}T00:00:00`).toISOString(),
@@ -92,12 +96,16 @@ function migrateToRecords() {
   const prnLogs = getStored('pilltime_prn_logs') || {};
   for (const [medId, logs] of Object.entries(prnLogs)) {
     const med = medMap[medId];
+    // 削除済みの薬はスキップ
+    if (!med) continue;
     for (const log of logs) {
-      migratedRecords.push({
+      const logDate = log.timestamp ? new Date(log.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      if (!recordsByDate[logDate]) recordsByDate[logDate] = [];
+      recordsByDate[logDate].push({
         id: generateId(),
-        name: med?.name || '不明な薬',
-        doseAmount: med?.doseAmount ?? 1,
-        unit: med?.unit || '',
+        name: med.name,
+        doseAmount: med.doseAmount ?? 1,
+        unit: med.unit || '',
         time: '',
         status: 'taken',
         type: 'prn',
@@ -115,16 +123,23 @@ function migrateToRecords() {
     }
   }
 
-  // 移行した記録はすべて今日の日付に格納
-  if (migratedRecords.length > 0) {
-    if (!allDetails[today]) allDetails[today] = {};
-    allDetails[today].records = [
-      ...(allDetails[today].records || []),
-      ...migratedRecords,
+  // マイグレーションしたレコードを正しい日付に格納
+  for (const [date, records] of Object.entries(recordsByDate)) {
+    if (!allDetails[date]) allDetails[date] = {};
+    allDetails[date].records = [
+      ...(allDetails[date].records || []),
+      ...records,
     ];
   }
 
   setStored(STORAGE_KEYS.dayDetails, allDetails);
+
+  // 旧キーを削除（再マイグレーション防止）
+  for (const key of keysToProcess) {
+    localStorage.removeItem(key);
+  }
+  localStorage.removeItem('pilltime_prn_logs');
+
   localStorage.setItem('pilltime_migration_records_v1', 'true');
 }
 
@@ -138,8 +153,33 @@ function parseExpandedId(id, medMap) {
   return { originalId: id, timeIndex: 0 };
 }
 
+// 「不明な薬」レコードを削除するクリーンアップ
+function cleanupUnknownRecords() {
+  if (localStorage.getItem('pilltime_cleanup_unknown_v1')) return;
+
+  const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+  let changed = false;
+
+  for (const date of Object.keys(allDetails)) {
+    const dayData = allDetails[date];
+    if (dayData.records && dayData.records.length > 0) {
+      const filtered = dayData.records.filter((r) => r.name !== '不明な薬');
+      if (filtered.length !== dayData.records.length) {
+        dayData.records = filtered;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    setStored(STORAGE_KEYS.dayDetails, allDetails);
+  }
+  localStorage.setItem('pilltime_cleanup_unknown_v1', 'true');
+}
+
 // アプリ起動時にマイグレーション実行
 migrateToRecords();
+cleanupUnknownRecords();
 
 async function localRequest(endpoint, options = {}) {
   const method = options.method || 'GET';

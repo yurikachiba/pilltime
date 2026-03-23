@@ -172,7 +172,7 @@ const TodayMeds = () => {
     } catch {
       // ignore
     }
-  }, [today]);
+  }, [today, prnTimeInputs]);
 
   const handleDeletePrnLog = useCallback(async (medId, timestamp) => {
     try {

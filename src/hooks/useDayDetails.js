@@ -27,12 +27,25 @@ export function useDayDetails(date) {
   }, [data, date]);
 
   const toggleMedication = useCallback((medicationId) => {
-    setTakenMedications((prev) =>
-      prev.includes(medicationId)
+    setTakenMedications((prev) => {
+      const updated = prev.includes(medicationId)
         ? prev.filter((id) => id !== medicationId)
-        : [...prev, medicationId]
-    );
-  }, []);
+        : [...prev, medicationId];
+      // takenMeds_{DATE} にも即座に同期（今日のお薬・カレンダーとの整合性）
+      if (date) {
+        localStorage.setItem(`takenMeds_${date}`, JSON.stringify(updated));
+        try {
+          const allDetails = JSON.parse(localStorage.getItem('pilltime_day_details') || '{}');
+          if (!allDetails[date]) allDetails[date] = {};
+          allDetails[date].takenMedications = updated;
+          localStorage.setItem('pilltime_day_details', JSON.stringify(allDetails));
+        } catch {
+          // ignore
+        }
+      }
+      return updated;
+    });
+  }, [date]);
 
   const save = useCallback(async () => {
     const payload = { date, mood, notes, takenMedications };

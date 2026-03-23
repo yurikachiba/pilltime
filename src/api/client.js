@@ -59,11 +59,21 @@ async function localRequest(endpoint, options = {}) {
     const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
     const dayData = allDetails[date] || {};
     const medications = (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
+    // takenMeds_{DATE} を正とし、dayDetails側も統合する
+    const takenFromToday = (() => {
+      try {
+        const raw = localStorage.getItem(`takenMeds_${date}`);
+        return raw ? JSON.parse(raw) : [];
+      } catch { return []; }
+    })();
+    const takenFromDetails = dayData.takenMedications || [];
+    // 両方のソースをマージ（重複排除）
+    const mergedTaken = [...new Set([...takenFromToday, ...takenFromDetails])];
     return {
       mood: dayData.mood || 5,
       notes: dayData.notes || '',
       medications,
-      takenMedications: dayData.takenMedications || [],
+      takenMedications: mergedTaken,
     };
   }
 
@@ -126,6 +136,8 @@ async function localRequest(endpoint, options = {}) {
       takenMedications: body.takenMedications,
     };
     setStored(STORAGE_KEYS.dayDetails, allDetails);
+    // takenMeds_{DATE} にも同期（カレンダー・今日のお薬ページと統一）
+    localStorage.setItem(`takenMeds_${body.date}`, JSON.stringify(body.takenMedications || []));
     return { success: true };
   }
 

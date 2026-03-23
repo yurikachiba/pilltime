@@ -3,12 +3,85 @@ import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 import { useDayDetails } from '../hooks/useDayDetails';
 import { useModal } from '../hooks/useModal';
-import { MOOD_MIN, MOOD_MAX } from '../constants';
+import { MOOD_MIN, MOOD_MAX, MOOD_FACES } from '../constants';
 import { api } from '../api/client';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const MOOD_LABELS = ['', '最悪', 'とても悪い', '悪い', 'やや悪い', '普通', 'やや良い', '良い', 'とても良い', '最高', '絶好調'];
+// SVGの顔アイコン（シンプルな線画）
+const MoodFaceIcon = ({ type, size = 32 }) => {
+  const s = size;
+  const cx = s / 2;
+  const cy = s / 2;
+  const r = s / 2 - 2;
+  const eyeY = cy - r * 0.15;
+  const eyeLX = cx - r * 0.3;
+  const eyeRX = cx + r * 0.3;
+  const mouthY = cy + r * 0.3;
+
+  let eyes = null;
+  let mouth = null;
+
+  switch (type) {
+    case 'terrible':
+      eyes = (
+        <>
+          <line x1={eyeLX - 2} y1={eyeY - 2} x2={eyeLX + 2} y2={eyeY + 2} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1={eyeLX + 2} y1={eyeY - 2} x2={eyeLX - 2} y2={eyeY + 2} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1={eyeRX - 2} y1={eyeY - 2} x2={eyeRX + 2} y2={eyeY + 2} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1={eyeRX + 2} y1={eyeY - 2} x2={eyeRX - 2} y2={eyeY + 2} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </>
+      );
+      mouth = <path d={`M${cx - r * 0.3} ${mouthY + 3} Q${cx} ${mouthY - 4} ${cx + r * 0.3} ${mouthY + 3}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
+      break;
+    case 'bad':
+      eyes = (
+        <>
+          <circle cx={eyeLX} cy={eyeY} r="2" fill="currentColor" />
+          <circle cx={eyeRX} cy={eyeY} r="2" fill="currentColor" />
+        </>
+      );
+      mouth = <path d={`M${cx - r * 0.25} ${mouthY + 2} Q${cx} ${mouthY - 3} ${cx + r * 0.25} ${mouthY + 2}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
+      break;
+    case 'neutral':
+      eyes = (
+        <>
+          <circle cx={eyeLX} cy={eyeY} r="2" fill="currentColor" />
+          <circle cx={eyeRX} cy={eyeY} r="2" fill="currentColor" />
+        </>
+      );
+      mouth = <line x1={cx - r * 0.25} y1={mouthY} x2={cx + r * 0.25} y2={mouthY} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
+      break;
+    case 'good':
+      eyes = (
+        <>
+          <circle cx={eyeLX} cy={eyeY} r="2" fill="currentColor" />
+          <circle cx={eyeRX} cy={eyeY} r="2" fill="currentColor" />
+        </>
+      );
+      mouth = <path d={`M${cx - r * 0.25} ${mouthY - 1} Q${cx} ${mouthY + 4} ${cx + r * 0.25} ${mouthY - 1}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
+      break;
+    case 'great':
+      eyes = (
+        <>
+          <path d={`M${eyeLX - 3} ${eyeY} Q${eyeLX} ${eyeY - 4} ${eyeLX + 3} ${eyeY}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d={`M${eyeRX - 3} ${eyeY} Q${eyeRX} ${eyeY - 4} ${eyeRX + 3} ${eyeY}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </>
+      );
+      mouth = <path d={`M${cx - r * 0.3} ${mouthY - 2} Q${cx} ${mouthY + 5} ${cx + r * 0.3} ${mouthY - 2}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />;
+      break;
+    default:
+      break;
+  }
+
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} fill="none">
+      <circle cx={cx} cy={cy} r={r} stroke="currentColor" strokeWidth="2" fill="none" />
+      {eyes}
+      {mouth}
+    </svg>
+  );
+};
 
 const DayDetailsPage = () => {
   const { date } = useParams();
@@ -113,21 +186,23 @@ const DayDetailsPage = () => {
           </svg>
           今日の体調
         </h2>
-        <div className="mood-slider">
-          <input
-            type="range"
-            min={MOOD_MIN}
-            max={MOOD_MAX}
-            value={mood}
-            onChange={(e) => setMood(Number(e.target.value))}
-            className="mood-slider__input"
-            aria-label="体調スライダー"
-          />
-          <div className="mood-slider__labels">
-            <span>{MOOD_MIN}</span>
-            <span className="mood-slider__value">{mood} - {MOOD_LABELS[mood]}</span>
-            <span>{MOOD_MAX}</span>
-          </div>
+        <div className="mood-faces">
+          {Array.from({ length: MOOD_MAX - MOOD_MIN + 1 }, (_, i) => i + MOOD_MIN).map((value) => {
+            const face = MOOD_FACES[value];
+            const isSelected = mood === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`mood-face-btn ${isSelected ? 'mood-face-btn--selected' : ''}`}
+                onClick={() => setMood(value)}
+                aria-label={face.label}
+              >
+                <MoodFaceIcon type={face.icon} size={36} />
+                <span className="mood-face-btn__label">{face.label}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 

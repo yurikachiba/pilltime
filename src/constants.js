@@ -23,4 +23,13 @@ export const INTERVAL_TYPES = {
 };
 
 export const MOOD_MIN = 1;
-export const MOOD_MAX = 10;
+export const MOOD_MAX = 5;
+
+export const MOOD_FACES = [
+  null, // index 0 unused
+  { label: '最悪', icon: 'terrible' },
+  { label: '悪い', icon: 'bad' },
+  { label: '普通', icon: 'neutral' },
+  { label: '良い', icon: 'good' },
+  { label: '最高', icon: 'great' },
+];

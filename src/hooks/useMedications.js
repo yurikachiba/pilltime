@@ -28,3 +28,12 @@ export function useAllRecords() {
 
   return { records, loading, error: error?.message || null };
 }
+
+export function useAllDiary() {
+  const { data: entries = [], isLoading: loading, error } = useQuery({
+    queryKey: ['allDiary'],
+    queryFn: () => api.get('/api/all-diary'),
+  });
+
+  return { entries, loading, error: error?.message || null };
+}

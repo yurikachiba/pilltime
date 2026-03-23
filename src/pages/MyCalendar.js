@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/ja';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { api } from '../api/client';
 
 moment.locale('ja');
 
@@ -30,13 +31,79 @@ const messages = {
 const localizer = momentLocalizer(moment);
 
 const MyCalendar = () => {
-  const events = [];
+  const [medications, setMedications] = useState([]);
+  const [takenByDate, setTakenByDate] = useState({});
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const meds = await api.get('/api/medications');
+        setMedications(meds);
+
+        // 過去90日分のtakenMedsを収集
+        const taken = {};
+        const today = moment();
+        for (let i = 0; i < 90; i++) {
+          const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
+          const raw = localStorage.getItem(`takenMeds_${date}`);
+          if (raw) {
+            try {
+              taken[date] = JSON.parse(raw);
+            } catch {
+              // ignore
+            }
+          }
+        }
+        setTakenByDate(taken);
+      } catch {
+        // ignore
+      }
+    };
+    fetchData();
+  }, []);
+
+  const events = useMemo(() => {
+    const result = [];
+    const medMap = {};
+    for (const med of medications) {
+      medMap[med.id] = med;
+    }
+
+    for (const [date, takenIds] of Object.entries(takenByDate)) {
+      if (!Array.isArray(takenIds)) continue;
+      for (const medId of takenIds) {
+        const med = medMap[medId];
+        if (!med) continue;
+        const day = moment(date).toDate();
+        result.push({
+          title: `${med.name}`,
+          start: day,
+          end: day,
+          allDay: true,
+          medId: med.id,
+        });
+      }
+    }
+    return result;
+  }, [medications, takenByDate]);
 
   const handleDateSelect = (date) => {
     const formattedDate = moment(date).format('YYYY-MM-DD');
     navigate(`/day-details/${formattedDate}`);
   };
+
+  const eventStyleGetter = () => ({
+    style: {
+      backgroundColor: '#4CAF50',
+      borderRadius: '4px',
+      opacity: 0.9,
+      color: 'white',
+      border: 'none',
+      fontSize: '11px',
+      padding: '1px 4px',
+    },
+  });
 
   const customToolbar = (toolbar) => {
     return (
@@ -86,10 +153,12 @@ const MyCalendar = () => {
           style={{ height: 500 }}
           selectable
           onSelectSlot={(slotInfo) => handleDateSelect(slotInfo.start)}
+          onSelectEvent={(event) => handleDateSelect(event.start)}
           formats={formats}
           components={{ toolbar: customToolbar }}
           views={{ month: true, week: true, day: true }}
           messages={messages}
+          eventPropGetter={eventStyleGetter}
         />
       </div>
     </div>

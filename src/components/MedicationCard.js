@@ -18,7 +18,10 @@ const MedicationCard = ({
         <div className="med-card__info">
           <h3 className="med-card__name">{med.name}</h3>
           <p className="med-card__dose">
-            1回 {med.doseAmount} {med.unit}
+            {med.doseAmounts && med.doseAmounts.some((d, i, arr) => d !== arr[0])
+              ? med.selectedTimes?.map((t, i) => `${t}: ${med.doseAmounts[i] ?? med.doseAmount}${med.unit}`).join('、')
+              : `1回 ${med.doseAmount} ${med.unit}`
+            }
           </p>
         </div>
         <div className="med-card__time-badge">

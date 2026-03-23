@@ -17,6 +17,7 @@ const AddTaskPage = () => {
   const [selectedTimes, setSelectedTimes] = useState(['']);
   const [selectedDosage, setSelectedDosage] = useState(1);
   const [doseAmount, setDoseAmount] = useState(1);
+  const [doseAmounts, setDoseAmounts] = useState([1]);
   const [intervalType, setIntervalType] = useState('');
   const [intervalValue, setIntervalValue] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -107,6 +108,9 @@ const AddTaskPage = () => {
       const newTimes = Array.from({ length: num }, (_, i) => prev[i] || '');
       return newTimes;
     });
+    setDoseAmounts((prev) => {
+      return Array.from({ length: num }, (_, i) => prev[i] ?? doseAmount);
+    });
   };
 
   const handleTimeChange = (index, value) => {
@@ -131,6 +135,7 @@ const AddTaskPage = () => {
     setSelectedTimes(['']);
     setSelectedDosage(1);
     setDoseAmount(1);
+    setDoseAmounts([1]);
     setIntervalType('');
     setIntervalValue('');
     setEndTime('');
@@ -152,6 +157,7 @@ const AddTaskPage = () => {
       };
       if (frequency === 'daily') {
         payload.timesPerDay = selectedDosage;
+        payload.doseAmounts = doseAmounts.slice(0, selectedDosage);
       }
       if (frequency === 'weekly') {
         payload.selectedDays = selectedDays;
@@ -248,7 +254,11 @@ const AddTaskPage = () => {
                   value={doseAmount}
                   onChange={(e) => {
                     const v = e.target.value;
-                    setDoseAmount(v === '' ? '' : Math.max(1, Number(v)));
+                    const newVal = v === '' ? '' : Math.max(1, Number(v));
+                    setDoseAmount(newVal);
+                    if (newVal !== '') {
+                      setDoseAmounts((prev) => prev.map((d) => d === '' ? newVal : d));
+                    }
                   }}
                 />
                 <span className="form-label" style={{ marginBottom: 0 }}>{unit || '錠'}</span>
@@ -357,13 +367,31 @@ const AddTaskPage = () => {
             {frequency === 'daily' && selectedTimes.map((time, index) => (
               <div key={index} className="form-group">
                 <label className="form-label" htmlFor={`time-${index}`}>{index + 1}回目の時間</label>
-                <input
-                  id={`time-${index}`}
-                  type="time"
-                  className="form-input"
-                  value={time}
-                  onChange={(e) => handleTimeChange(index, e.target.value)}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    id={`time-${index}`}
+                    type="time"
+                    className="form-input"
+                    value={time}
+                    onChange={(e) => handleTimeChange(index, e.target.value)}
+                  />
+                  <input
+                    id={`dose-${index}`}
+                    type="number"
+                    className="form-input form-input--small"
+                    min="1"
+                    value={doseAmounts[index] ?? doseAmount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDoseAmounts((prev) => {
+                        const next = [...prev];
+                        next[index] = v === '' ? '' : Math.max(1, Number(v));
+                        return next;
+                      });
+                    }}
+                  />
+                  <span className="form-label" style={{ marginBottom: 0 }}>{unit || '錠'}</span>
+                </div>
               </div>
             ))}
 
@@ -457,7 +485,12 @@ const AddTaskPage = () => {
                 </div>
                 <div className="confirm-card__row">
                   <dt>1回あたりの服用量</dt>
-                  <dd>{doseAmount} {unit}</dd>
+                  <dd>
+                    {frequency === 'daily' && selectedDosage > 1
+                      ? selectedTimes.map((t, i) => `${t || '未設定'}: ${doseAmounts[i] ?? doseAmount} ${unit}`).join('、')
+                      : `${doseAmount} ${unit}`
+                    }
+                  </dd>
                 </div>
               </dl>
             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useMedications } from '../hooks/useMedications';
 import { NOTIFICATION_MESSAGES } from '../constants';
 import { requestNotificationPermission, updateNotificationSchedules, showNotificationViaSW } from '../notifications';
@@ -33,19 +34,15 @@ const TodayMeds = () => {
   const hasPrnMeds = prnMeds.length > 0;
 
   // 頓服ログを取得
+  const { data: fetchedPrnLogs } = useQuery({
+    queryKey: ['prnLogs', today],
+    queryFn: () => api.get(`/api/prn-logs/${today}`),
+    enabled: hasPrnMeds,
+  });
+
   useEffect(() => {
-    const fetchPrnLogs = async () => {
-      try {
-        const logs = await api.get(`/api/prn-logs/${today}`);
-        setPrnLogs(logs);
-      } catch {
-        // ignore
-      }
-    };
-    if (hasPrnMeds) {
-      fetchPrnLogs();
-    }
-  }, [today, hasPrnMeds]);
+    if (fetchedPrnLogs) setPrnLogs(fetchedPrnLogs);
+  }, [fetchedPrnLogs]);
 
   useEffect(() => {
     if (medications.length > 0) {
@@ -149,10 +146,20 @@ const TodayMeds = () => {
     navigate(`/add-task?edit=${med.id}`);
   }, [navigate]);
 
+  const [prnTimeInputs, setPrnTimeInputs] = useState({});
+
   const handlePrnLog = useCallback(async (medId) => {
     try {
-      const now = new Date();
-      const timestamp = now.toISOString();
+      const inputTime = prnTimeInputs[medId];
+      let timestamp;
+      if (inputTime) {
+        const [h, m] = inputTime.split(':');
+        const d = new Date();
+        d.setHours(Number(h), Number(m), 0, 0);
+        timestamp = d.toISOString();
+      } else {
+        timestamp = new Date().toISOString();
+      }
       await api.post('/api/prn-log', {
         medicationId: medId,
         timestamp,
@@ -304,12 +311,20 @@ const TodayMeds = () => {
                           <h3 className="prn-card__name">{med.name}</h3>
                           <p className="prn-card__dose">1回 {med.doseAmount} {med.unit}</p>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            type="time"
+                            className="form-input"
+                            style={{ width: '110px', fontSize: '14px' }}
+                            value={prnTimeInputs[med.id] || ''}
+                            onChange={(e) => setPrnTimeInputs((prev) => ({ ...prev, [med.id]: e.target.value }))}
+                            placeholder="今"
+                          />
                           <button
                             className="prn-card__log-btn"
                             onClick={() => handlePrnLog(med.id)}
                           >
-                            服用した
+                            {prnTimeInputs[med.id] ? `${prnTimeInputs[med.id]}に服用` : '今飲んだ'}
                           </button>
                           <button
                             type="button"

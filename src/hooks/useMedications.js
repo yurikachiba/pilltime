@@ -1,49 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 
 export function useMedications() {
-  const [medications, setMedications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const { data: medications = [], isLoading: loading, error } = useQuery({
+    queryKey: ['medications'],
+    queryFn: () => api.get('/api/medications'),
+  });
 
-  const fetchMedications = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.get('/api/medications');
-      setMedications(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const setMedications = (updater) => {
+    queryClient.setQueryData(['medications'], (prev) =>
+      typeof updater === 'function' ? updater(prev || []) : updater
+    );
+  };
 
-  useEffect(() => {
-    fetchMedications();
-  }, [fetchMedications]);
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ['medications'] });
 
-  return { medications, setMedications, loading, error, refetch: fetchMedications };
+  return { medications, setMedications, loading, error: error?.message || null, refetch };
 }
 
 export function useMedicationHistory() {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data: history = [], isLoading: loading, error } = useQuery({
+    queryKey: ['medicationHistory'],
+    queryFn: () => api.get('/api/medicationHistory'),
+  });
 
-  useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const data = await api.get('/api/medicationHistory');
-        setHistory(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchHistory();
-  }, []);
-
-  return { history, loading, error };
+  return { history, loading, error: error?.message || null };
 }

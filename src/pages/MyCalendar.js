@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
+import { useQuery } from '@tanstack/react-query';
 import moment from 'moment';
 import 'moment/locale/ja';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -31,37 +32,32 @@ const messages = {
 const localizer = momentLocalizer(moment);
 
 const MyCalendar = () => {
-  const [medications, setMedications] = useState([]);
-  const [takenByDate, setTakenByDate] = useState({});
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const meds = await api.get('/api/medications');
-        setMedications(meds);
+  const { data: medications = [] } = useQuery({
+    queryKey: ['medications'],
+    queryFn: () => api.get('/api/medications'),
+  });
 
-        // 過去90日分のtakenMedsを収集
-        const taken = {};
-        const today = moment();
-        for (let i = 0; i < 90; i++) {
-          const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
-          const raw = localStorage.getItem(`takenMeds_${date}`);
-          if (raw) {
-            try {
-              taken[date] = JSON.parse(raw);
-            } catch {
-              // ignore
-            }
+  const { data: takenByDate = {} } = useQuery({
+    queryKey: ['takenByDate'],
+    queryFn: () => {
+      const taken = {};
+      const today = moment();
+      for (let i = 0; i < 90; i++) {
+        const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
+        const raw = localStorage.getItem(`takenMeds_${date}`);
+        if (raw) {
+          try {
+            taken[date] = JSON.parse(raw);
+          } catch {
+            // ignore
           }
         }
-        setTakenByDate(taken);
-      } catch {
-        // ignore
       }
-    };
-    fetchData();
-  }, []);
+      return taken;
+    },
+  });
 
   const events = useMemo(() => {
     const result = [];

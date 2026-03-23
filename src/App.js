@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Outlet } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TodayMeds from './pages/TodayMeds';
 import MyCalendar from './pages/MyCalendar';
 import RecordPage from './pages/RecordPage';
@@ -12,6 +13,15 @@ import ErrorBoundary from './pages/ErrorBoundary';
 import BottomNav from './components/BottomNav';
 
 import './App.css';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60,
+      retry: false,
+    },
+  },
+});
 
 function AppLayout() {
   return (
@@ -26,6 +36,7 @@ function AppLayout() {
 
 function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <HelmetProvider>
       <Router>
         <ErrorBoundary>
@@ -43,6 +54,7 @@ function App() {
         </ErrorBoundary>
       </Router>
     </HelmetProvider>
+    </QueryClientProvider>
   );
 }
 

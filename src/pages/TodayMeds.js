@@ -6,6 +6,7 @@ import { useMedications } from '../hooks/useMedications';
 import { NOTIFICATION_MESSAGES } from '../constants';
 import { requestNotificationPermission, updateNotificationSchedules, showNotificationViaSW } from '../notifications';
 import { api } from '../api/client';
+import { getScheduledMedsForDate } from '../utils/expandMedications';
 import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
@@ -58,38 +59,8 @@ const TodayMeds = () => {
     if (dayData) setRecords(dayData.records || []);
   }, [dayData]);
 
-  // 今日の曜日
-  const todayDayIndex = new Date().getDay();
-  const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-  const todayDayName = dayNames[todayDayIndex];
-
   // 定時薬を時間ごとに展開 + 今日対象のもののみ + 時間順ソート
-  const scheduledMeds = medications
-    .filter((med) => {
-      if (med.frequency === 'prn') return false;
-      if (med.frequency === 'weekly' && med.selectedDays && !med.selectedDays.includes(todayDayName)) return false;
-      if (med.frequency === 'interval' && med.intervalType === 'day' && med.startDate && med.intervalValue) {
-        const start = new Date(med.startDate);
-        const now = new Date(today);
-        const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-        if (diffDays < 0 || diffDays % Number(med.intervalValue) !== 0) return false;
-      }
-      return true;
-    })
-    .flatMap((med) => {
-      if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
-        return med.selectedTimes.map((t, i) => ({
-          ...med,
-          id: `${med.id}_${i}`,
-          _originalId: med.id,
-          _timeIndex: i,
-          time: t,
-          doseAmount: med.doseAmounts?.[i] ?? med.doseAmount,
-        }));
-      }
-      return [{ ...med, _originalId: med.id, _timeIndex: 0 }];
-    })
-    .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const scheduledMeds = getScheduledMedsForDate(medications, today);
   const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
   // 頓服の今日の記録

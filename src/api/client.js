@@ -1,7 +1,8 @@
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
+  notificationSettings: 'pilltime_notification_settings',
 };
 
 function getStored(key) {
@@ -149,9 +150,20 @@ async function localRequest(endpoint, options = {}) {
     return (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
   }
 
-  // GET /api/medicationHistory
-  if (method === 'GET' && endpoint === '/api/medicationHistory') {
-    return getStored(STORAGE_KEYS.history) || [];
+  // GET /api/all-records（全日付の服用記録を集約して返す）
+  if (method === 'GET' && endpoint === '/api/all-records') {
+    const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+    const allRecords = [];
+    for (const [date, dayData] of Object.entries(allDetails)) {
+      if (dayData.records && dayData.records.length > 0) {
+        for (const record of dayData.records) {
+          allRecords.push({ ...record, date });
+        }
+      }
+    }
+    // 新しい順にソート
+    allRecords.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    return allRecords;
   }
 
   // GET /api/day-details/:date

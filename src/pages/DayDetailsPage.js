@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useDayDetails } from '../hooks/useDayDetails';
 import { useModal } from '../hooks/useModal';
 import { MOOD_MIN, MOOD_MAX, MOOD_FACES } from '../constants';
+import { expandMedsByTime } from '../utils/expandMedications';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -95,20 +96,9 @@ const DayDetailsPage = () => {
   } = useDayDetails(date);
   const modal = useModal();
 
-  const scheduledMeds = medications
-    .filter((med) => med.frequency !== 'prn')
-    .flatMap((med) => {
-      if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
-        return med.selectedTimes.map((t, i) => ({
-          ...med,
-          id: `${med.id}_${i}`,
-          _originalId: med.id,
-          time: t,
-          doseAmount: med.doseAmounts?.[i] ?? med.doseAmount,
-        }));
-      }
-      return [med];
-    });
+  const scheduledMeds = expandMedsByTime(
+    medications.filter((med) => med.frequency !== 'prn')
+  );
 
   // 記録からスケジュール薬の服用状態を判定
   const isMedTaken = (med) =>

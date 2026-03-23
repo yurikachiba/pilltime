@@ -30,7 +30,7 @@ const MedicationCard = ({
             }
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="med-card__header-right">
           <div className="med-card__time-badge">
             <input
               type="time"
@@ -40,11 +40,11 @@ const MedicationCard = ({
               aria-label={`${med.name}の服用時間`}
             />
           </div>
-          <div style={{ position: 'relative' }}>
+          <div className="med-card__menu-wrapper">
             <button
               type="button"
               onClick={() => setShowMenu(!showMenu)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+              className="med-card__menu-btn"
               aria-label="メニュー"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -54,17 +54,14 @@ const MedicationCard = ({
             {showMenu && (
               <>
                 <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                  className="med-card__menu-overlay"
                   onClick={() => setShowMenu(false)}
                 />
-                <div style={{
-                  position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: '8px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.15)', zIndex: 10, minWidth: '120px', overflow: 'hidden',
-                }}>
+                <div className="med-card__menu-dropdown">
                   <button
                     type="button"
                     onClick={() => { onEdit?.(med); setShowMenu(false); }}
-                    style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}
+                    className="med-card__menu-item"
                   >
                     編集
                   </button>
@@ -78,7 +75,7 @@ const MedicationCard = ({
         <div className="med-card__action-btns">
           <button
             className={`med-card__take-btn ${isTaken ? 'med-card__take-btn--done' : ''}`}
-            onClick={() => onMarkTaken(med.id)}
+            onClick={() => onMarkTaken()}
             disabled={isSkipped}
             aria-label={isTaken ? '服用済み' : '服用する'}
           >
@@ -86,7 +83,7 @@ const MedicationCard = ({
           </button>
           <button
             className={`med-card__skip-btn ${isSkipped ? 'med-card__skip-btn--done' : ''}`}
-            onClick={() => onSkip(med.id)}
+            onClick={() => onSkip()}
             disabled={isTaken}
             aria-label={isSkipped ? 'スキップ済み' : 'スキップする'}
           >

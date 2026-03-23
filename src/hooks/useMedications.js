@@ -19,11 +19,12 @@ export function useMedications() {
   return { medications, setMedications, loading, error: error?.message || null, refetch };
 }
 
-export function useMedicationHistory() {
-  const { data: history = [], isLoading: loading, error } = useQuery({
-    queryKey: ['medicationHistory'],
-    queryFn: () => api.get('/api/medicationHistory'),
+
+export function useAllRecords() {
+  const { data: records = [], isLoading: loading, error } = useQuery({
+    queryKey: ['allRecords'],
+    queryFn: () => api.get('/api/all-records'),
   });
 
-  return { history, loading, error: error?.message || null };
+  return { records, loading, error: error?.message || null };
 }

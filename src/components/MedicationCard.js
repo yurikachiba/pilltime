@@ -10,25 +10,16 @@ const MedicationCard = ({
   onMessageTypeChange,
   onNotify,
   onMarkTaken,
+  onSkip,
   onDelete,
   onEdit,
   isTaken,
+  isSkipped,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = () => {
-    if (confirmDelete) {
-      onDelete?.(med.id);
-      setConfirmDelete(false);
-      setShowMenu(false);
-    } else {
-      setConfirmDelete(true);
-    }
-  };
 
   return (
-    <div className={`med-card ${isTaken ? 'med-card--taken' : ''}`}>
+    <div className={`med-card ${isTaken ? 'med-card--taken' : ''} ${isSkipped ? 'med-card--skipped' : ''}`}>
       <div className="med-card__header">
         <div className="med-card__info">
           <h3 className="med-card__name">{med.name}</h3>
@@ -52,7 +43,7 @@ const MedicationCard = ({
           <div style={{ position: 'relative' }}>
             <button
               type="button"
-              onClick={() => { setShowMenu(!showMenu); setConfirmDelete(false); }}
+              onClick={() => setShowMenu(!showMenu)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
               aria-label="メニュー"
             >
@@ -61,37 +52,47 @@ const MedicationCard = ({
               </svg>
             </button>
             {showMenu && (
-              <div style={{
-                position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: '8px',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.15)', zIndex: 10, minWidth: '120px', overflow: 'hidden',
-              }}>
-                <button
-                  type="button"
-                  onClick={() => { onEdit?.(med); setShowMenu(false); }}
-                  style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  編集
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px', color: confirmDelete ? 'white' : '#e53e3e', backgroundColor: confirmDelete ? '#e53e3e' : 'transparent' }}
-                >
-                  {confirmDelete ? '本当に削除' : '削除'}
-                </button>
-              </div>
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                  onClick={() => setShowMenu(false)}
+                />
+                <div style={{
+                  position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: '8px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.15)', zIndex: 10, minWidth: '120px', overflow: 'hidden',
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => { onEdit?.(med); setShowMenu(false); }}
+                    style={{ display: 'block', width: '100%', padding: '12px 16px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    編集
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
       </div>
       <div className="med-card__actions">
-        <button
-          className={`med-card__take-btn ${isTaken ? 'med-card__take-btn--done' : ''}`}
-          onClick={() => onMarkTaken(med.id)}
-          aria-label={isTaken ? '服用済み' : '服用する'}
-        >
-          {isTaken ? '服用済み' : '飲んだ'}
-        </button>
+        <div className="med-card__action-btns">
+          <button
+            className={`med-card__take-btn ${isTaken ? 'med-card__take-btn--done' : ''}`}
+            onClick={() => onMarkTaken(med.id)}
+            disabled={isSkipped}
+            aria-label={isTaken ? '服用済み' : '服用する'}
+          >
+            {isTaken ? '服用済み' : '飲んだ'}
+          </button>
+          <button
+            className={`med-card__skip-btn ${isSkipped ? 'med-card__skip-btn--done' : ''}`}
+            onClick={() => onSkip(med.id)}
+            disabled={isTaken}
+            aria-label={isSkipped ? 'スキップ済み' : 'スキップする'}
+          >
+            {isSkipped ? 'スキップ済' : 'スキップ'}
+          </button>
+        </div>
         <div className="med-card__settings">
           <label className="med-card__toggle">
             <input
@@ -101,28 +102,29 @@ const MedicationCard = ({
               aria-label={`${med.name}の通知`}
             />
             <span className="med-card__toggle-slider" />
+            <span className="med-card__toggle-label">{notificationOn ? '通知ON' : '通知OFF'}</span>
           </label>
-          <select
-            value={messageType}
-            onChange={(e) => onMessageTypeChange(med.id, e)}
-            className="med-card__select"
-            aria-label="通知メッセージタイプ"
-          >
-            {Object.entries(MESSAGE_TYPE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          <button
-            className="med-card__notify-btn"
-            onClick={() => onNotify(med)}
-            aria-label="テスト通知を送信"
-            title="テスト通知"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </button>
+          {notificationOn && (
+            <>
+              <select
+                value={messageType}
+                onChange={(e) => onMessageTypeChange(med.id, e)}
+                className="med-card__select"
+                aria-label="通知メッセージタイプ"
+              >
+                {Object.entries(MESSAGE_TYPE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <button
+                className="med-card__notify-btn"
+                onClick={() => onNotify(med)}
+                aria-label="テスト通知を送信"
+              >
+                テスト
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

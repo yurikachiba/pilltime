@@ -134,9 +134,14 @@ async function processSchedules(schedules) {
       icon: '/logo192.png',
       badge: '/favicon-32x32.png',
       tag: fireId,
-      vibrate: [200, 100, 200, 100, 200],
+      vibrate: [200, 100, 200, 100, 300],
       requireInteraction: true,
+      silent: false,
+      renotify: true,
       data: { medId: schedule.medId, url: '/' },
+      actions: [
+        { action: 'take', title: '飲んだ' },
+      ],
     });
 
     fired.push(fireId);
@@ -216,21 +221,76 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// 通知クリック
+// 通知の「服用した」アクションまたはクリックを処理
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const { medId, url } = event.notification.data || {};
+  const action = event.action; // 'take' or '' (body click)
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((clients) => {
+    (async () => {
+      // 「服用した」ボタンが押された場合、takenMedsに記録
+      if (action === 'take' && medId) {
+        await markMedAsTaken(medId);
+
+        // 開いているクライアントに通知して状態を同期
+        const allClients = await self.clients.matchAll({ type: 'window' });
+        for (const client of allClients) {
+          client.postMessage({ type: 'MED_TAKEN_FROM_NOTIFICATION', medId });
+        }
+      }
+
+      // ウィンドウをフォーカスまたは開く
+      const clients = await self.clients.matchAll({ type: 'window' });
       for (const client of clients) {
         if (client.url.includes(self.location.origin)) {
           return client.focus();
         }
       }
-      return self.clients.openWindow(url);
-    })
+      return self.clients.openWindow(url || '/');
+    })()
   );
+});
+
+// Service Workerから直接takenMedsを更新
+async function markMedAsTaken(medId) {
+  const today = new Date().toISOString().split('T')[0];
+  const key = `takenMeds_${today}`;
+  const existing = (await getFromIDB(key)) || [];
+  if (!existing.includes(medId)) {
+    existing.push(medId);
+    await saveToIDB(key, existing);
+  }
+}
+
+// Periodic Background Sync で通知チェック（ブラウザがバックグラウンドでも動作）
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'check-medications') {
+    event.waitUntil(checkAndFireNotifications());
+  }
+});
+
+// 通常のpushイベント（将来のプッシュサーバー対応用）
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    const payload = event.data.json();
+    event.waitUntil(
+      self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: '/logo192.png',
+        badge: '/favicon-32x32.png',
+        vibrate: [200, 100, 200, 100, 300],
+        requireInteraction: true,
+        silent: false,
+        renotify: true,
+        tag: payload.tag || 'pilltime-push',
+        data: payload.data || { url: '/' },
+        actions: [
+          { action: 'take', title: '飲んだ' },
+        ],
+      })
+    );
+  }
 });
 
 // 起動時にチェッカーを開始

@@ -10,6 +10,13 @@ import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
+// 記録からスケジュール薬の服用/スキップ状態を判定
+function findRecord(records, name, time, status) {
+  return records.find((r) =>
+    r.name === name && r.time === (time || '') && r.status === status && r.type === 'scheduled'
+  );
+}
+
 const TodayMeds = () => {
   const { medications, setMedications, loading, error, refetch } = useMedications();
   const navigate = useNavigate();
@@ -17,20 +24,23 @@ const TodayMeds = () => {
     const saved = localStorage.getItem('pilltime_notification_settings');
     return saved ? JSON.parse(saved) : {};
   });
-  const [takenMeds, setTakenMeds] = useState(() => {
-    const saved = localStorage.getItem(`takenMeds_${new Date().toISOString().split('T')[0]}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [skippedMeds, setSkippedMeds] = useState(() => {
-    const saved = localStorage.getItem(`skippedMeds_${new Date().toISOString().split('T')[0]}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [prnLogs, setPrnLogs] = useState({});
+  const [records, setRecords] = useState([]);
+  const [prnTimeInputs, setPrnTimeInputs] = useState({});
 
   const today = new Date().toISOString().split('T')[0];
 
-  // 今日の曜日（月=0, 日=6に変換）
-  const todayDayIndex = new Date().getDay(); // 0=日, 1=月, ...
+  // 今日の記録を取得
+  const { data: dayData } = useQuery({
+    queryKey: ['dayDetails', today],
+    queryFn: () => api.get(`/api/day-details/${today}`),
+  });
+
+  useEffect(() => {
+    if (dayData) setRecords(dayData.records || []);
+  }, [dayData]);
+
+  // 今日の曜日
+  const todayDayIndex = new Date().getDay();
   const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
   const todayDayName = dayNames[todayDayIndex];
 
@@ -63,18 +73,8 @@ const TodayMeds = () => {
     .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
-  const hasPrnMeds = prnMeds.length > 0;
-
-  // 頓服ログを取得
-  const { data: fetchedPrnLogs } = useQuery({
-    queryKey: ['prnLogs', today],
-    queryFn: () => api.get(`/api/prn-logs/${today}`),
-    enabled: hasPrnMeds,
-  });
-
-  useEffect(() => {
-    if (fetchedPrnLogs) setPrnLogs(fetchedPrnLogs);
-  }, [fetchedPrnLogs]);
+  // 頓服の今日の記録
+  const prnRecordsToday = records.filter((r) => r.type === 'prn');
 
   useEffect(() => {
     if (scheduledMeds.length > 0 || prnMeds.length > 0) {
@@ -99,30 +99,27 @@ const TodayMeds = () => {
 
   // Service Workerからの服用通知を受け取る
   useEffect(() => {
-    const handler = (event) => {
+    const handler = async (event) => {
       const { medId } = event.detail;
-      setTakenMeds((prev) => prev.includes(medId) ? prev : [...prev, medId]);
+      // 薬情報を取得して記録を作成
+      const allMeds = await api.get('/api/medications');
+      const med = allMeds.find((m) => m.id === medId);
+      if (med && !findRecord(records, med.name, med.time || '', 'taken')) {
+        const record = await api.post('/api/record', {
+          date: today,
+          name: med.name,
+          doseAmount: med.doseAmount,
+          unit: med.unit,
+          time: med.time || '',
+          status: 'taken',
+          type: 'scheduled',
+        });
+        setRecords((prev) => [...prev, record]);
+      }
     };
     window.addEventListener('med-taken-from-notification', handler);
     return () => window.removeEventListener('med-taken-from-notification', handler);
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(`takenMeds_${today}`, JSON.stringify(takenMeds));
-    // dayDetails側にも同期（日別詳細ページとの整合性）
-    try {
-      const allDetails = JSON.parse(localStorage.getItem('pilltime_day_details') || '{}');
-      if (!allDetails[today]) allDetails[today] = {};
-      allDetails[today].takenMedications = takenMeds;
-      localStorage.setItem('pilltime_day_details', JSON.stringify(allDetails));
-    } catch {
-      // ignore
-    }
-  }, [takenMeds, today]);
-
-  useEffect(() => {
-    localStorage.setItem(`skippedMeds_${today}`, JSON.stringify(skippedMeds));
-  }, [skippedMeds, today]);
+  }, [today, records]);
 
   useEffect(() => {
     if (Object.keys(notificationSettings).length > 0) {
@@ -165,11 +162,9 @@ const TodayMeds = () => {
 
   const handleTimeChange = useCallback(async (id, event) => {
     const newTime = event.target.value;
-    // UIを即座に更新
     setMedications((prev) =>
       prev.map((med) => (med.id === id ? { ...med, time: newTime } : med))
     );
-    // localStorageに保存
     const originalId = id.includes('_') ? id.split('_')[0] : id;
     const timeIndex = id.includes('_') ? Number(id.split('_')[1]) : 0;
     try {
@@ -182,7 +177,7 @@ const TodayMeds = () => {
         await api.put(`/api/medications/${originalId}`, update);
       }
     } catch {
-      // ignore
+      // 無視
     }
   }, [setMedications]);
 
@@ -193,46 +188,104 @@ const TodayMeds = () => {
     }));
   }, []);
 
-  const handleMarkTaken = useCallback((id) => {
-    setTakenMeds((prev) =>
-      prev.includes(id) ? prev.filter((mid) => mid !== id) : [...prev, id]
-    );
-    // 服用したらスキップを解除
-    setSkippedMeds((prev) => prev.filter((mid) => mid !== id));
-  }, []);
+  const handleMarkTaken = useCallback(async (med) => {
+    const existing = findRecord(records, med.name, med.time || '', 'taken');
+    if (existing) {
+      // 取り消し
+      await api.delete('/api/record', { date: today, recordId: existing.id });
+      setRecords((prev) => prev.filter((r) => r.id !== existing.id));
+    } else {
+      // スキップ記録があれば先に削除
+      const skipRecord = findRecord(records, med.name, med.time || '', 'skipped');
+      if (skipRecord) {
+        await api.delete('/api/record', { date: today, recordId: skipRecord.id });
+        setRecords((prev) => prev.filter((r) => r.id !== skipRecord.id));
+      }
+      // 服用記録を追加
+      const record = await api.post('/api/record', {
+        date: today,
+        name: med.name,
+        doseAmount: med.doseAmount,
+        unit: med.unit,
+        time: med.time || '',
+        status: 'taken',
+        type: 'scheduled',
+      });
+      setRecords((prev) => [...prev, record]);
+    }
+  }, [records, today]);
 
-  const handleSkip = useCallback((id) => {
-    setSkippedMeds((prev) =>
-      prev.includes(id) ? prev.filter((mid) => mid !== id) : [...prev, id]
-    );
-    // スキップしたら服用を解除
-    setTakenMeds((prev) => prev.filter((mid) => mid !== id));
-  }, []);
+  const handleSkip = useCallback(async (med) => {
+    const existing = findRecord(records, med.name, med.time || '', 'skipped');
+    if (existing) {
+      await api.delete('/api/record', { date: today, recordId: existing.id });
+      setRecords((prev) => prev.filter((r) => r.id !== existing.id));
+    } else {
+      // 服用記録があれば先に削除
+      const takenRecord = findRecord(records, med.name, med.time || '', 'taken');
+      if (takenRecord) {
+        await api.delete('/api/record', { date: today, recordId: takenRecord.id });
+        setRecords((prev) => prev.filter((r) => r.id !== takenRecord.id));
+      }
+      const record = await api.post('/api/record', {
+        date: today,
+        name: med.name,
+        doseAmount: med.doseAmount,
+        unit: med.unit,
+        time: med.time || '',
+        status: 'skipped',
+        type: 'scheduled',
+      });
+      setRecords((prev) => [...prev, record]);
+    }
+  }, [records, today]);
 
-  const handleMarkAllTaken = useCallback(() => {
-    const allScheduledIds = scheduledMeds.map((m) => m.id);
-    const allTaken = allScheduledIds.every((id) => takenMeds.includes(id));
+  const handleMarkAllTaken = useCallback(async () => {
+    const allTaken = scheduledMeds.every((m) => findRecord(records, m.name, m.time || '', 'taken'));
     if (allTaken) {
       // 全取り消し
-      setTakenMeds((prev) => prev.filter((id) => !allScheduledIds.includes(id)));
+      const takenRecords = records.filter((r) => r.type === 'scheduled' && r.status === 'taken');
+      for (const rec of takenRecords) {
+        await api.delete('/api/record', { date: today, recordId: rec.id });
+      }
+      setRecords((prev) => prev.filter((r) => !(r.type === 'scheduled' && r.status === 'taken')));
     } else {
-      // 全服用
-      setTakenMeds((prev) => [...new Set([...prev, ...allScheduledIds])]);
+      // 未服用の薬を全て服用にする
+      const newRecords = [];
+      for (const med of scheduledMeds) {
+        if (!findRecord(records, med.name, med.time || '', 'taken')) {
+          // スキップがあれば削除
+          const skipRecord = findRecord(records, med.name, med.time || '', 'skipped');
+          if (skipRecord) {
+            await api.delete('/api/record', { date: today, recordId: skipRecord.id });
+          }
+          const record = await api.post('/api/record', {
+            date: today,
+            name: med.name,
+            doseAmount: med.doseAmount,
+            unit: med.unit,
+            time: med.time || '',
+            status: 'taken',
+            type: 'scheduled',
+          });
+          newRecords.push(record);
+        }
+      }
+      setRecords((prev) => [
+        ...prev.filter((r) => !(r.type === 'scheduled' && r.status === 'skipped')),
+        ...newRecords,
+      ]);
     }
-  }, [scheduledMeds, takenMeds]);
+  }, [scheduledMeds, records, today]);
 
   const handleDelete = useCallback(async (id) => {
     try {
       const originalId = id.includes('_') ? id.split('_')[0] : id;
       await api.delete(`/api/medications/${originalId}`);
-      // takenMeds・skippedMedsから該当薬のIDを除去（展開後IDも含む）
-      setTakenMeds((prev) => prev.filter((tid) => tid !== originalId && !tid.startsWith(`${originalId}_`)));
-      setSkippedMeds((prev) => prev.filter((tid) => tid !== originalId && !tid.startsWith(`${originalId}_`)));
       // 通知設定もクリーンアップ
       setNotificationSettings((prev) => {
         const updated = { ...prev };
         delete updated[originalId];
-        // 展開IDも削除
         Object.keys(updated).forEach((key) => {
           if (key.startsWith(`${originalId}_`)) delete updated[key];
         });
@@ -240,7 +293,7 @@ const TodayMeds = () => {
       });
       refetch();
     } catch {
-      // ignore
+      // 無視
     }
   }, [refetch]);
 
@@ -249,11 +302,9 @@ const TodayMeds = () => {
     navigate(`/add-task?edit=${originalId}`);
   }, [navigate]);
 
-  const [prnTimeInputs, setPrnTimeInputs] = useState({});
-
-  const handlePrnLog = useCallback(async (medId) => {
+  const handlePrnLog = useCallback(async (med) => {
     try {
-      const inputTime = prnTimeInputs[medId];
+      const inputTime = prnTimeInputs[med.id];
       let timestamp;
       if (inputTime) {
         const [h, m] = inputTime.split(':');
@@ -263,38 +314,40 @@ const TodayMeds = () => {
       } else {
         timestamp = new Date().toISOString();
       }
-      await api.post('/api/prn-log', {
-        medicationId: medId,
-        timestamp,
+      const record = await api.post('/api/record', {
         date: today,
+        name: med.name,
+        doseAmount: med.doseAmount,
+        unit: med.unit,
+        time: '',
+        status: 'taken',
+        type: 'prn',
+        timestamp,
       });
-      setPrnLogs((prev) => ({
-        ...prev,
-        [medId]: [...(prev[medId] || []), { timestamp, date: today }],
-      }));
+      setRecords((prev) => [...prev, record]);
     } catch {
-      // ignore
+      // 無視
     }
   }, [today, prnTimeInputs]);
 
-  const handleDeletePrnLog = useCallback(async (medId, timestamp) => {
+  const handleDeletePrnLog = useCallback(async (recordId) => {
     try {
-      await api.delete('/api/prn-log', { medicationId: medId, timestamp });
-      setPrnLogs((prev) => ({
-        ...prev,
-        [medId]: (prev[medId] || []).filter((log) => log.timestamp !== timestamp),
-      }));
+      await api.delete('/api/record', { date: today, recordId });
+      setRecords((prev) => prev.filter((r) => r.id !== recordId));
     } catch {
-      // ignore
+      // 無視
     }
-  }, []);
+  }, [today]);
 
-  const takenCount = takenMeds.filter((id) => scheduledMeds.some((m) => m.id === id)).length;
-  const skippedCount = skippedMeds.filter((id) => scheduledMeds.some((m) => m.id === id)).length;
+  const isTaken = useCallback((med) => !!findRecord(records, med.name, med.time || '', 'taken'), [records]);
+  const isSkipped = useCallback((med) => !!findRecord(records, med.name, med.time || '', 'skipped'), [records]);
+
+  const takenCount = scheduledMeds.filter((m) => isTaken(m)).length;
+  const skippedCount = scheduledMeds.filter((m) => isSkipped(m)).length;
   const totalCount = scheduledMeds.length;
   const handledCount = takenCount + skippedCount;
   const progress = totalCount > 0 ? Math.round((handledCount / totalCount) * 100) : 0;
-  const allTaken = totalCount > 0 && handledCount === totalCount;
+  const allHandled = totalCount > 0 && handledCount === totalCount;
 
   if (loading) return <LoadingSpinner message="お薬情報を読み込み中..." />;
 
@@ -373,11 +426,11 @@ const TodayMeds = () => {
               {scheduledMeds.length > 1 && (
                 <button
                   type="button"
-                  className={`btn btn--full ${allTaken ? 'btn--secondary' : 'btn--primary'}`}
+                  className={`btn btn--full ${allHandled ? 'btn--secondary' : 'btn--primary'}`}
                   style={{ marginBottom: '12px' }}
                   onClick={handleMarkAllTaken}
                 >
-                  {allTaken ? '全て取り消す' : '全部飲んだ'}
+                  {allHandled ? '全て取り消す' : '全部飲んだ'}
                 </button>
               )}
               <div className="med-list">
@@ -391,12 +444,12 @@ const TodayMeds = () => {
                     onTimeChange={handleTimeChange}
                     onMessageTypeChange={handleMessageTypeChange}
                     onNotify={handleNotification}
-                    onMarkTaken={handleMarkTaken}
-                    onSkip={handleSkip}
+                    onMarkTaken={() => handleMarkTaken(med)}
+                    onSkip={() => handleSkip(med)}
                     onDelete={handleDelete}
                     onEdit={handleEdit}
-                    isTaken={takenMeds.includes(med.id)}
-                    isSkipped={skippedMeds.includes(med.id)}
+                    isTaken={isTaken(med)}
+                    isSkipped={isSkipped(med)}
                   />
                 ))}
               </div>
@@ -414,7 +467,7 @@ const TodayMeds = () => {
               </h2>
               <div className="prn-list">
                 {prnMeds.map((med) => {
-                  const logs = prnLogs[med.id] || [];
+                  const logs = prnRecordsToday.filter((r) => r.name === med.name);
                   return (
                     <div key={med.id} className="prn-card">
                       <div className="prn-card__header">
@@ -431,7 +484,7 @@ const TodayMeds = () => {
                           />
                           <button
                             className="prn-card__log-btn"
-                            onClick={() => handlePrnLog(med.id)}
+                            onClick={() => handlePrnLog(med)}
                           >
                             {prnTimeInputs[med.id] ? `${prnTimeInputs[med.id]}に服用` : '今飲んだ'}
                           </button>
@@ -449,13 +502,13 @@ const TodayMeds = () => {
                           <p className="prn-card__logs-title">今日の服用記録（{logs.length}回）</p>
                           <ul className="prn-card__log-list">
                             {logs.map((log) => (
-                              <li key={log.timestamp} className="prn-card__log-item">
+                              <li key={log.id} className="prn-card__log-item">
                                 <span className="prn-card__log-time">
                                   {new Date(log.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                                 <button
                                   className="prn-card__log-delete"
-                                  onClick={() => handleDeletePrnLog(med.id, log.timestamp)}
+                                  onClick={() => handleDeletePrnLog(log.id)}
                                   aria-label="この記録を取消"
                                 >
                                   取消

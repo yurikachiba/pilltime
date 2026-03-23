@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 import { useDayDetails } from '../hooks/useDayDetails';
 import { useModal } from '../hooks/useModal';
 import { MOOD_MIN, MOOD_MAX, MOOD_FACES } from '../constants';
-import { api } from '../api/client';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -89,25 +88,12 @@ const DayDetailsPage = () => {
     mood, setMood,
     notes, setNotes,
     medications,
-    takenMedications, toggleMedication,
+    records,
+    toggleMedication,
     loading, error,
     save,
   } = useDayDetails(date);
   const modal = useModal();
-  const [prnLogs, setPrnLogs] = useState({});
-
-  // 頓服ログを取得
-  useEffect(() => {
-    const fetchPrnLogs = async () => {
-      try {
-        const logs = await api.get(`/api/prn-logs/${date}`);
-        setPrnLogs(logs);
-      } catch {
-        // ignore
-      }
-    };
-    fetchPrnLogs();
-  }, [date]);
 
   const scheduledMeds = medications
     .filter((med) => med.frequency !== 'prn')
@@ -123,18 +109,14 @@ const DayDetailsPage = () => {
       }
       return [med];
     });
-  const prnMeds = medications.filter((med) => med.frequency === 'prn');
 
-  // 頓服ログエントリーのフラット化（表示用）
-  const prnLogEntries = prnMeds.flatMap((med) => {
-    const logs = prnLogs[med.id] || [];
-    return logs.map((log) => ({
-      ...log,
-      medName: med.name,
-      doseAmount: med.doseAmount,
-      unit: med.unit,
-    }));
-  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  // 記録からスケジュール薬の服用状態を判定
+  const isMedTaken = (med) =>
+    records.some((r) => r.name === med.name && r.time === (med.time || '') && r.status === 'taken' && r.type === 'scheduled');
+
+  // 頓服記録（記録から直接取得）
+  const prnRecords = records.filter((r) => r.type === 'prn')
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
   const handleSave = async () => {
     try {
@@ -234,29 +216,32 @@ const DayDetailsPage = () => {
             薬の摂取状況
           </h2>
           <div className="medication-checklist">
-            {scheduledMeds.map((medication) => (
-              <label key={medication.id} className={`med-check ${takenMedications.includes(medication.id) ? 'med-check--taken' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={takenMedications.includes(medication.id)}
-                  onChange={() => toggleMedication(medication.id)}
-                  className="med-check__input"
-                />
-                <span className="med-check__box">
-                  {takenMedications.includes(medication.id) && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </span>
-                <span className="med-check__name">{medication.name}{medication.time ? ` ${medication.time}` : ''}（{medication.doseAmount} {medication.unit}）</span>
-              </label>
-            ))}
+            {scheduledMeds.map((medication) => {
+              const taken = isMedTaken(medication);
+              return (
+                <label key={medication.id} className={`med-check ${taken ? 'med-check--taken' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={taken}
+                    onChange={() => toggleMedication(medication)}
+                    className="med-check__input"
+                  />
+                  <span className="med-check__box">
+                    {taken && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="med-check__name">{medication.name}{medication.time ? ` ${medication.time}` : ''}（{medication.doseAmount} {medication.unit}）</span>
+                </label>
+              );
+            })}
           </div>
         </section>
       )}
 
-      {prnMeds.length > 0 && (
+      {prnRecords.length > 0 && (
         <section className="detail-section">
           <h2 className="detail-section__title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -265,21 +250,17 @@ const DayDetailsPage = () => {
             </svg>
             頓服薬の服用記録
           </h2>
-          {prnLogEntries.length === 0 ? (
-            <p className="detail-section__empty">この日の頓服記録はありません</p>
-          ) : (
-            <div className="prn-detail-logs">
-              {prnLogEntries.map((entry) => (
-                <div key={entry.timestamp} className="prn-detail-log">
-                  <span className="prn-detail-log__time">
-                    {new Date(entry.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <span className="prn-detail-log__name">{entry.medName}</span>
-                  <span className="prn-detail-log__dose">{entry.doseAmount} {entry.unit}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="prn-detail-logs">
+            {prnRecords.map((entry) => (
+              <div key={entry.id} className="prn-detail-log">
+                <span className="prn-detail-log__time">
+                  {new Date(entry.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="prn-detail-log__name">{entry.name}</span>
+                <span className="prn-detail-log__dose">{entry.doseAmount} {entry.unit}</span>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

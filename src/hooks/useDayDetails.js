@@ -5,7 +5,7 @@ import { api } from '../api/client';
 export function useDayDetails(date) {
   const [mood, setMood] = useState(5);
   const [notes, setNotes] = useState('');
-  const [takenMedications, setTakenMedications] = useState([]);
+  const [records, setRecords] = useState([]);
   const syncedDateRef = useRef(null);
 
   const { data, isLoading: loading, error } = useQuery({
@@ -21,42 +21,44 @@ export function useDayDetails(date) {
     if (data && date && syncedDateRef.current !== date) {
       syncedDateRef.current = date;
       setNotes(data.notes || '');
-      setTakenMedications(data.takenMedications || []);
+      setRecords(data.records || []);
       if (data.mood) setMood(data.mood);
     }
   }, [data, date]);
 
-  const toggleMedication = useCallback((medicationId) => {
-    setTakenMedications((prev) => {
-      const updated = prev.includes(medicationId)
-        ? prev.filter((id) => id !== medicationId)
-        : [...prev, medicationId];
-      // takenMeds_{DATE} にも即座に同期（今日のお薬・カレンダーとの整合性）
-      if (date) {
-        localStorage.setItem(`takenMeds_${date}`, JSON.stringify(updated));
-        try {
-          const allDetails = JSON.parse(localStorage.getItem('pilltime_day_details') || '{}');
-          if (!allDetails[date]) allDetails[date] = {};
-          allDetails[date].takenMedications = updated;
-          localStorage.setItem('pilltime_day_details', JSON.stringify(allDetails));
-        } catch {
-          // ignore
-        }
-      }
-      return updated;
-    });
-  }, [date]);
+  // 定時薬の服用/スキップをトグル
+  const toggleMedication = useCallback(async (med) => {
+    const existing = records.find(
+      (r) => r.name === med.name && r.time === (med.time || '') && r.status === 'taken' && r.type === 'scheduled'
+    );
+    if (existing) {
+      await api.delete('/api/record', { date, recordId: existing.id });
+      setRecords((prev) => prev.filter((r) => r.id !== existing.id));
+    } else {
+      const record = await api.post('/api/record', {
+        date,
+        name: med.name,
+        doseAmount: med.doseAmount,
+        unit: med.unit,
+        time: med.time || '',
+        status: 'taken',
+        type: 'scheduled',
+      });
+      setRecords((prev) => [...prev, record]);
+    }
+  }, [date, records]);
 
   const save = useCallback(async () => {
-    const payload = { date, mood, notes, takenMedications };
+    const payload = { date, mood, notes };
     return api.post('/api/save-day-details', payload);
-  }, [date, mood, notes, takenMedications]);
+  }, [date, mood, notes]);
 
   return {
     mood, setMood,
     notes, setNotes,
     medications,
-    takenMedications, toggleMedication,
+    records,
+    toggleMedication,
     loading, error: error?.message || null,
     save,
   };

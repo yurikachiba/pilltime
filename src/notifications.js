@@ -45,21 +45,9 @@ export async function registerServiceWorker() {
         sendToSW({ type: 'SCHEDULES_RESPONSE', data: schedules });
       }
 
-      // 通知から服用記録された場合、localStorageを同期
+      // 通知から服用記録された場合、Reactコンポーネントに通知
       if (event.data?.type === 'MED_TAKEN_FROM_NOTIFICATION') {
         const medId = event.data.medId;
-        const today = new Date().toISOString().split('T')[0];
-        const key = `takenMeds_${today}`;
-        try {
-          const existing = JSON.parse(localStorage.getItem(key) || '[]');
-          if (!existing.includes(medId)) {
-            existing.push(medId);
-            localStorage.setItem(key, JSON.stringify(existing));
-          }
-        } catch {
-          // ignore
-        }
-        // カスタムイベントを発火してReactコンポーネントに通知
         window.dispatchEvent(new CustomEvent('med-taken-from-notification', { detail: { medId } }));
       }
     });

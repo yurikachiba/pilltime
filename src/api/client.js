@@ -2,7 +2,6 @@ const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
-  prnLogs: 'pilltime_prn_logs',
 };
 
 function getStored(key) {
@@ -25,19 +24,121 @@ function generateId() {
 // 既存データに doseAmount / timesPerDay がない場合の補完
 function normalizeMedication(med) {
   const normalized = { ...med };
-  // 旧 dose フィールドの移行
   if (normalized.doseAmount == null) {
-    // 旧データの dose は daily の回数だったので、錠数としては使わない
     normalized.doseAmount = 1;
   }
   if (normalized.timesPerDay == null) {
-    // 旧データの dose が daily の回数だった
     normalized.timesPerDay = (normalized.frequency === 'daily' && normalized.dose > 0)
       ? normalized.dose
       : undefined;
   }
   return normalized;
 }
+
+// --- マイグレーション: 旧データ → 新データ ---
+// 旧: takenMeds_{DATE}, skippedMeds_{DATE}, pilltime_prn_logs (薬IDに紐づいた記録)
+// 新: pilltime_day_details[date].records (薬から独立した自己完結型の記録)
+function migrateToRecords() {
+  if (localStorage.getItem('pilltime_migration_records_v1')) return;
+
+  const medications = (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
+  const medMap = {};
+  for (const med of medications) {
+    medMap[med.id] = med;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const migratedRecords = [];
+
+  // takenMeds_{DATE} と skippedMeds_{DATE} を変換
+  const keysToProcess = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('takenMeds_') || key.startsWith('skippedMeds_'))) {
+      keysToProcess.push(key);
+    }
+  }
+
+  for (const key of keysToProcess) {
+    const isTaken = key.startsWith('takenMeds_');
+    const date = key.replace(/^(takenMeds_|skippedMeds_)/, '');
+    const status = isTaken ? 'taken' : 'skipped';
+
+    try {
+      const ids = JSON.parse(localStorage.getItem(key)) || [];
+      for (const id of ids) {
+        // 展開ID（例: med_0, med_1）をパース
+        const { originalId, timeIndex } = parseExpandedId(id, medMap);
+        const med = medMap[originalId];
+
+        migratedRecords.push({
+          id: generateId(),
+          name: med?.name || '不明な薬',
+          doseAmount: med?.doseAmounts?.[timeIndex] ?? med?.doseAmount ?? 1,
+          unit: med?.unit || '',
+          time: med?.selectedTimes?.[timeIndex] || med?.time || '',
+          status,
+          type: 'scheduled',
+          timestamp: new Date(`${date}T00:00:00`).toISOString(),
+        });
+      }
+    } catch {
+      // 無視
+    }
+  }
+
+  // pilltime_prn_logs を変換
+  const prnLogs = getStored('pilltime_prn_logs') || {};
+  for (const [medId, logs] of Object.entries(prnLogs)) {
+    const med = medMap[medId];
+    for (const log of logs) {
+      migratedRecords.push({
+        id: generateId(),
+        name: med?.name || '不明な薬',
+        doseAmount: med?.doseAmount ?? 1,
+        unit: med?.unit || '',
+        time: '',
+        status: 'taken',
+        type: 'prn',
+        timestamp: log.timestamp,
+      });
+    }
+  }
+
+  // 既存の dayDetails から takenMedications を削除し、mood/notes は保持
+  const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+  for (const date of Object.keys(allDetails)) {
+    delete allDetails[date].takenMedications;
+    if (!allDetails[date].records) {
+      allDetails[date].records = [];
+    }
+  }
+
+  // 移行した記録はすべて今日の日付に格納
+  if (migratedRecords.length > 0) {
+    if (!allDetails[today]) allDetails[today] = {};
+    allDetails[today].records = [
+      ...(allDetails[today].records || []),
+      ...migratedRecords,
+    ];
+  }
+
+  setStored(STORAGE_KEYS.dayDetails, allDetails);
+  localStorage.setItem('pilltime_migration_records_v1', 'true');
+}
+
+// 展開ID（例: "abc123_0"）を元のIDとtimeIndexにパース
+function parseExpandedId(id, medMap) {
+  if (medMap[id]) return { originalId: id, timeIndex: 0 };
+  const match = id.match(/^(.+)_(\d+)$/);
+  if (match && medMap[match[1]]) {
+    return { originalId: match[1], timeIndex: Number(match[2]) };
+  }
+  return { originalId: id, timeIndex: 0 };
+}
+
+// アプリ起動時にマイグレーション実行
+migrateToRecords();
 
 async function localRequest(endpoint, options = {}) {
   const method = options.method || 'GET';
@@ -59,21 +160,11 @@ async function localRequest(endpoint, options = {}) {
     const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
     const dayData = allDetails[date] || {};
     const medications = (getStored(STORAGE_KEYS.medications) || []).map(normalizeMedication);
-    // takenMeds_{DATE} を正とし、dayDetails側も統合する
-    const takenFromToday = (() => {
-      try {
-        const raw = localStorage.getItem(`takenMeds_${date}`);
-        return raw ? JSON.parse(raw) : [];
-      } catch { return []; }
-    })();
-    const takenFromDetails = dayData.takenMedications || [];
-    // 両方のソースをマージ（重複排除）
-    const mergedTaken = [...new Set([...takenFromToday, ...takenFromDetails])];
     return {
       mood: dayData.mood || 5,
       notes: dayData.notes || '',
+      records: dayData.records || [],
       medications,
-      takenMedications: mergedTaken,
     };
   }
 
@@ -91,7 +182,6 @@ async function localRequest(endpoint, options = {}) {
       time: body.selectedTimes?.[0] || '',
       createdAt: new Date().toISOString(),
     };
-    // 頻度に応じたフィールドだけ保存
     if (body.frequency === 'daily') {
       newMed.timesPerDay = body.timesPerDay || 1;
     }
@@ -108,7 +198,6 @@ async function localRequest(endpoint, options = {}) {
         newMed.startDate = body.startDate;
       }
     }
-    // 頓服薬は時間情報不要
     if (body.frequency === 'prn') {
       newMed.selectedTimes = [];
       newMed.time = '';
@@ -116,7 +205,6 @@ async function localRequest(endpoint, options = {}) {
     medications.push(newMed);
     setStored(STORAGE_KEYS.medications, medications);
 
-    // 履歴にも追加
     const history = getStored(STORAGE_KEYS.history) || [];
     history.unshift({
       name: body.name,
@@ -127,58 +215,45 @@ async function localRequest(endpoint, options = {}) {
     return newMed;
   }
 
-  // POST /api/save-day-details
+  // POST /api/save-day-details（体調・メモのみ保存）
   if (method === 'POST' && endpoint === '/api/save-day-details') {
     const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
-    allDetails[body.date] = {
-      mood: body.mood,
-      notes: body.notes,
-      takenMedications: body.takenMedications,
-    };
+    if (!allDetails[body.date]) allDetails[body.date] = {};
+    allDetails[body.date].mood = body.mood;
+    allDetails[body.date].notes = body.notes;
     setStored(STORAGE_KEYS.dayDetails, allDetails);
-    // takenMeds_{DATE} にも同期（カレンダー・今日のお薬ページと統一）
-    localStorage.setItem(`takenMeds_${body.date}`, JSON.stringify(body.takenMedications || []));
     return { success: true };
   }
 
-  // POST /api/prn-log
-  if (method === 'POST' && endpoint === '/api/prn-log') {
-    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
-    const medId = body.medicationId;
-    if (!logs[medId]) {
-      logs[medId] = [];
-    }
-    logs[medId].push({
+  // POST /api/record（服用記録を追加）
+  if (method === 'POST' && endpoint === '/api/record') {
+    const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+    if (!allDetails[body.date]) allDetails[body.date] = {};
+    if (!allDetails[body.date].records) allDetails[body.date].records = [];
+    const record = {
+      id: generateId(),
+      name: body.name,
+      doseAmount: body.doseAmount,
+      unit: body.unit,
+      time: body.time || '',
+      status: body.status,
+      type: body.type || 'scheduled',
       timestamp: body.timestamp || new Date().toISOString(),
-      date: body.date || new Date().toISOString().split('T')[0],
-    });
-    setStored(STORAGE_KEYS.prnLogs, logs);
-    return { success: true };
+    };
+    allDetails[body.date].records.push(record);
+    setStored(STORAGE_KEYS.dayDetails, allDetails);
+    return record;
   }
 
-  // DELETE /api/prn-log
-  if (method === 'DELETE' && endpoint === '/api/prn-log') {
-    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
-    const medId = body.medicationId;
-    if (logs[medId]) {
-      logs[medId] = logs[medId].filter((log) => log.timestamp !== body.timestamp);
-      setStored(STORAGE_KEYS.prnLogs, logs);
+  // DELETE /api/record（服用記録を削除）
+  if (method === 'DELETE' && endpoint === '/api/record') {
+    const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+    const dayData = allDetails[body.date];
+    if (dayData && dayData.records) {
+      dayData.records = dayData.records.filter((r) => r.id !== body.recordId);
+      setStored(STORAGE_KEYS.dayDetails, allDetails);
     }
     return { success: true };
-  }
-
-  // GET /api/prn-logs/:date
-  if (method === 'GET' && endpoint.startsWith('/api/prn-logs/')) {
-    const date = endpoint.replace('/api/prn-logs/', '');
-    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
-    const result = {};
-    for (const [medId, medLogs] of Object.entries(logs)) {
-      const dayLogs = medLogs.filter((log) => log.date === date);
-      if (dayLogs.length > 0) {
-        result[medId] = dayLogs;
-      }
-    }
-    return result;
   }
 
   // PUT /api/medications/:id
@@ -192,17 +267,11 @@ async function localRequest(endpoint, options = {}) {
     return normalizeMedication(medications[index]);
   }
 
-  // DELETE /api/medications/:id
+  // DELETE /api/medications/:id（記録は削除しない＝独立しているため）
   if (method === 'DELETE' && endpoint.startsWith('/api/medications/')) {
     const id = endpoint.replace('/api/medications/', '');
     const medications = (getStored(STORAGE_KEYS.medications) || []).filter((m) => m.id !== id);
     setStored(STORAGE_KEYS.medications, medications);
-    // 頓服ログも削除
-    const logs = getStored(STORAGE_KEYS.prnLogs) || {};
-    if (logs[id]) {
-      delete logs[id];
-      setStored(STORAGE_KEYS.prnLogs, logs);
-    }
     return { success: true };
   }
 

@@ -7,11 +7,10 @@ const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
-  prnLogs: 'pilltime_prn_logs',
   notificationSettings: 'pilltime_notification_settings',
 };
 
-const OBJECT_KEYS = ['dayDetails', 'prnLogs', 'notificationSettings'];
+const OBJECT_KEYS = ['dayDetails', 'notificationSettings'];
 
 function getAllData() {
   const result = {};
@@ -23,19 +22,6 @@ function getAllData() {
       result[key] = OBJECT_KEYS.includes(key) ? {} : [];
     }
   }
-  // takenMeds（日付ごと）を収集
-  const takenMeds = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith('takenMeds_')) {
-      try {
-        takenMeds[k] = JSON.parse(localStorage.getItem(k));
-      } catch {
-        // ignore
-      }
-    }
-  }
-  result.takenMeds = takenMeds;
   return result;
 }
 
@@ -43,7 +29,7 @@ function validateImportData(data) {
   if (typeof data !== 'object' || data === null) {
     return 'JSONオブジェクトではありません';
   }
-  if (!data.medications && !data.history && !data.dayDetails && !data.takenMeds && !data.prnLogs) {
+  if (!data.medications && !data.history && !data.dayDetails) {
     return '有効なデータキーが見つかりません';
   }
   if (data.medications !== undefined && !Array.isArray(data.medications)) {
@@ -121,28 +107,12 @@ const DataManagePage = () => {
           importReplace('medications');
           importReplace('history');
           importReplace('dayDetails');
-          importReplace('prnLogs');
           importReplace('notificationSettings');
-          // takenMeds（日付ごと）
-          if (data.takenMeds) {
-            for (const [k, v] of Object.entries(data.takenMeds)) {
-              localStorage.setItem(k, JSON.stringify(v));
-            }
-          }
         } else {
-          // マージモード
           importMergeArray('medications', (m) => m.id);
           importMergeArray('history', (h) => `${h.name}_${h.date}`);
           importMergeObject('dayDetails');
-          importMergeObject('prnLogs');
           importMergeObject('notificationSettings');
-          if (data.takenMeds) {
-            for (const [k, v] of Object.entries(data.takenMeds)) {
-              const existing = JSON.parse(localStorage.getItem(k) || '[]');
-              const merged = [...new Set([...existing, ...v])];
-              localStorage.setItem(k, JSON.stringify(merged));
-            }
-          }
         }
 
         showSuccess('データをインポートしました');
@@ -152,7 +122,6 @@ const DataManagePage = () => {
     };
     reader.readAsText(file);
 
-    // 同じファイルを再選択できるようにリセット
     event.target.value = '';
   }, [importMode, showSuccess, showError]);
 

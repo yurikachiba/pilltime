@@ -21,13 +21,21 @@ npm run build    # 本番ビルド
 - localStorage（永続化、リモートAPIなし）
 
 ## データ構造
-- `pilltime_medications`: 薬の一覧
-- `takenMeds_{DATE}`: 日付ごとの服用済みID一覧（今日のお薬・カレンダーが使用）
-- `skippedMeds_{DATE}`: 日付ごとのスキップ済みID一覧
-- `pilltime_day_details`: 日別詳細（体調・メモ・服用状況）
-- `pilltime_prn_logs`: 頓服薬の服用記録
+- `pilltime_medications`: 薬の一覧（登録・スケジュール管理用）
+- `pilltime_day_details`: 日別詳細。各日付に以下の三つを格納:
+  - `mood`: 体調（1-5）
+  - `notes`: メモ（自由記述）
+  - `records`: 摂取状況（薬から独立した自己完結型の記録配列）
+    - 各レコード: `{ id, name, doseAmount, unit, time, status, type, timestamp }`
+    - 薬IDへの紐づけなし。記録単体で意味が通る。
+- `pilltime_history`: 薬の登録履歴
 - `pilltime_notification_settings`: 通知設定
 
 ## 重要な注意点
-- `takenMeds_{DATE}` と `pilltime_day_details[date].takenMedications` は常に同期を保つこと
-- 片方だけ更新すると、ページ間で服薬状況が不整合になる
+- 服用記録は薬と紐づかない。記録は日記のように独立して蓄積される。
+- 薬を削除しても記録は残る。
+
+## 開発ルール
+- 勝手に憶測で判断せず、仕様が不明確な場合は必ずユーザーに確認すること
+- 大きな設計変更は実装前に仕様をヒアリングすること
+- 人をおちょくる発言をしない

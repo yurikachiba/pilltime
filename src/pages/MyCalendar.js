@@ -5,7 +5,6 @@ import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
 import moment from 'moment';
 import 'moment/locale/ja';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { useMedications } from '../hooks/useMedications';
 
 moment.locale('ja');
 
@@ -33,104 +32,48 @@ const localizer = momentLocalizer(moment);
 const MyCalendar = () => {
   const navigate = useNavigate();
 
-  const { medications } = useMedications();
-
-  const takenByDate = useMemo(() => {
-    const taken = {};
-    const today = moment();
-    for (let i = 0; i < 90; i++) {
-      const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
-      const raw = localStorage.getItem(`takenMeds_${date}`);
-      if (raw) {
-        try {
-          taken[date] = JSON.parse(raw);
-        } catch {
-          // ignore
-        }
-      }
+  // dayDetailsから記録を読み込む
+  const allDetails = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('pilltime_day_details');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
     }
-    return taken;
-  }, []);
-
-  const allPrnLogs = useMemo(() => {
-    const raw = localStorage.getItem('pilltime_prn_logs');
-    return raw ? JSON.parse(raw) : {};
   }, []);
 
   const events = useMemo(() => {
     const result = [];
-    const scheduledMeds = medications.filter((m) => m.frequency !== 'prn');
-    const medMap = {};
-    for (const med of medications) {
-      medMap[med.id] = med;
-    }
 
-    // 過去の各日について、服用/未服用を判定
-    const today = moment();
-    for (let i = 0; i < 90; i++) {
-      const date = today.clone().subtract(i, 'days').format('YYYY-MM-DD');
-      const takenIds = takenByDate[date] || [];
+    for (const [date, dayData] of Object.entries(allDetails)) {
+      const records = dayData.records || [];
       const day = moment(date).toDate();
 
-      const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][moment(date).day()];
-
-      for (const med of scheduledMeds) {
-        // 登録日より前は表示しない
-        if (med.createdAt && date < med.createdAt.split('T')[0]) continue;
-        // weekly: 対象曜日のみ
-        if (med.frequency === 'weekly' && med.selectedDays && !med.selectedDays.includes(dayOfWeek)) continue;
-        // interval(日): 対象日のみ
-        if (med.frequency === 'interval' && med.intervalType === 'day' && med.startDate && med.intervalValue) {
-          const diffDays = moment(date).diff(moment(med.startDate), 'days');
-          if (diffDays < 0 || diffDays % Number(med.intervalValue) !== 0) continue;
-        }
-
-        // 1日複数回の薬は時間ごとに展開
-        if (med.frequency === 'daily' && med.selectedTimes && med.selectedTimes.length > 1) {
-          for (let ti = 0; ti < med.selectedTimes.length; ti++) {
-            const timeId = `${med.id}_${ti}`;
-            const taken = takenIds.includes(timeId);
-            result.push({
-              title: `${med.name} ${med.selectedTimes[ti]}`,
-              start: day, end: day, allDay: true,
-              medId: timeId, taken,
-            });
-          }
-        } else {
-          const taken = takenIds.includes(med.id);
+      for (const record of records) {
+        if (record.type === 'prn') {
           result.push({
-            title: med.name,
-            start: day, end: day, allDay: true,
-            medId: med.id, taken,
+            title: `${record.name}`,
+            start: day,
+            end: day,
+            allDay: true,
+            taken: true,
+            isPrn: true,
+          });
+        } else {
+          result.push({
+            title: record.time ? `${record.name} ${record.time}` : record.name,
+            start: day,
+            end: day,
+            allDay: true,
+            taken: record.status === 'taken',
+            isSkipped: record.status === 'skipped',
           });
         }
       }
     }
-    // 頓服の服用記録を追加
-    const prnMeds = medications.filter((m) => m.frequency === 'prn');
-    for (const med of prnMeds) {
-      const logs = allPrnLogs[med.id] || [];
-      const logsByDate = {};
-      for (const log of logs) {
-        if (!logsByDate[log.date]) logsByDate[log.date] = 0;
-        logsByDate[log.date]++;
-      }
-      for (const [date, count] of Object.entries(logsByDate)) {
-        const day = moment(date).toDate();
-        result.push({
-          title: `${med.name} (${count}回)`,
-          start: day,
-          end: day,
-          allDay: true,
-          medId: med.id,
-          taken: true,
-          isPrn: true,
-        });
-      }
-    }
 
     return result;
-  }, [medications, takenByDate, allPrnLogs]);
+  }, [allDetails]);
 
   const handleDateSelect = (date) => {
     const formattedDate = moment(date).format('YYYY-MM-DD');
@@ -139,7 +82,7 @@ const MyCalendar = () => {
 
   const eventStyleGetter = (event) => ({
     style: {
-      backgroundColor: event.isPrn ? '#f59e0b' : event.taken ? '#4CAF50' : '#e53e3e',
+      backgroundColor: event.isPrn ? '#f59e0b' : event.isSkipped ? '#9ca3af' : event.taken ? '#4CAF50' : '#e53e3e',
       borderRadius: '4px',
       opacity: 0.9,
       color: 'white',

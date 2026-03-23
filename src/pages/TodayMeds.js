@@ -7,6 +7,7 @@ import { NOTIFICATION_MESSAGES } from '../constants';
 import { requestNotificationPermission, updateNotificationSchedules, showNotificationViaSW } from '../notifications';
 import { api } from '../api/client';
 import { getScheduledMedsForDate } from '../utils/expandMedications';
+import { getLocalToday } from '../utils/dateUtils';
 import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
@@ -47,7 +48,7 @@ const TodayMeds = () => {
     return isIOSNonSafari();
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
 
   // 今日の記録を取得
   const { data: dayData } = useQuery({

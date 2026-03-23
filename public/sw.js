@@ -1,5 +1,14 @@
 // PillTime Service Worker - バックグラウンド通知 & PWAキャッシュ
 
+// ローカルタイムゾーンで今日の日付文字列を返す（YYYY-MM-DD形式）
+function getLocalToday() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 const CACHE_NAME = 'pilltime-v1';
 
 // プリキャッシュするアセット（CRAのビルド成果物はハッシュ付きなのでランタイムキャッシュで対応）
@@ -119,7 +128,7 @@ async function processSchedules(schedules) {
 
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const today = now.toISOString().split('T')[0];
+  const today = getLocalToday();
 
   const firedKey = `fired_${today}`;
   const fired = await getFromIDB(firedKey) || [];
@@ -216,7 +225,7 @@ self.addEventListener('message', (event) => {
   }
 
   if (type === 'RESET_FIRED') {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     saveToIDB(`fired_${today}`, []);
   }
 });
@@ -254,7 +263,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // Service Workerから直接takenMedsを更新
 async function markMedAsTaken(medId) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalToday();
   const key = `takenMeds_${today}`;
   const existing = (await getFromIDB(key)) || [];
   if (!existing.includes(medId)) {

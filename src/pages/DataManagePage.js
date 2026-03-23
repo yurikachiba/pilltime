@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import Modal from '../components/Modal';
 import { useModal } from '../hooks/useModal';
 import { STORAGE_KEYS } from '../api/client';
+import { getLocalToday } from '../utils/dateUtils';
 
 const OBJECT_KEYS = ['dayDetails', 'notificationSettings'];
 
@@ -50,7 +51,7 @@ const DataManagePage = () => {
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const date = new Date().toISOString().split('T')[0];
+      const date = getLocalToday();
       a.href = url;
       a.download = `pilltime_backup_${date}.json`;
       document.body.appendChild(a);

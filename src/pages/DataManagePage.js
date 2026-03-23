@@ -7,18 +7,35 @@ const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
   dayDetails: 'pilltime_day_details',
+  prnLogs: 'pilltime_prn_logs',
+  notificationSettings: 'pilltime_notification_settings',
 };
+
+const OBJECT_KEYS = ['dayDetails', 'prnLogs', 'notificationSettings'];
 
 function getAllData() {
   const result = {};
   for (const [key, storageKey] of Object.entries(STORAGE_KEYS)) {
     try {
       const raw = localStorage.getItem(storageKey);
-      result[key] = raw ? JSON.parse(raw) : key === 'dayDetails' ? {} : [];
+      result[key] = raw ? JSON.parse(raw) : OBJECT_KEYS.includes(key) ? {} : [];
     } catch {
-      result[key] = key === 'dayDetails' ? {} : [];
+      result[key] = OBJECT_KEYS.includes(key) ? {} : [];
     }
   }
+  // takenMeds（日付ごと）を収集
+  const takenMeds = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('takenMeds_')) {
+      try {
+        takenMeds[k] = JSON.parse(localStorage.getItem(k));
+      } catch {
+        // ignore
+      }
+    }
+  }
+  result.takenMeds = takenMeds;
   return result;
 }
 
@@ -26,8 +43,8 @@ function validateImportData(data) {
   if (typeof data !== 'object' || data === null) {
     return 'JSONオブジェクトではありません';
   }
-  if (!data.medications && !data.history && !data.dayDetails) {
-    return 'medications、history、dayDetailsのいずれかのキーが必要です';
+  if (!data.medications && !data.history && !data.dayDetails && !data.takenMeds && !data.prnLogs) {
+    return '有効なデータキーが見つかりません';
   }
   if (data.medications !== undefined && !Array.isArray(data.medications)) {
     return 'medicationsは配列である必要があります';
@@ -80,34 +97,51 @@ const DataManagePage = () => {
           return;
         }
 
+        const importReplace = (key) => {
+          if (data[key] !== undefined) {
+            localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(data[key]));
+          }
+        };
+        const importMergeArray = (key, idFn) => {
+          if (data[key] !== undefined) {
+            const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS[key]) || '[]');
+            const existingIds = new Set(existing.map(idFn));
+            const merged = [...existing, ...data[key].filter((item) => !existingIds.has(idFn(item)))];
+            localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(merged));
+          }
+        };
+        const importMergeObject = (key) => {
+          if (data[key] !== undefined) {
+            const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS[key]) || '{}');
+            localStorage.setItem(STORAGE_KEYS[key], JSON.stringify({ ...existing, ...data[key] }));
+          }
+        };
+
         if (importMode === 'replace') {
-          if (data.medications !== undefined) {
-            localStorage.setItem(STORAGE_KEYS.medications, JSON.stringify(data.medications));
-          }
-          if (data.history !== undefined) {
-            localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(data.history));
-          }
-          if (data.dayDetails !== undefined) {
-            localStorage.setItem(STORAGE_KEYS.dayDetails, JSON.stringify(data.dayDetails));
+          importReplace('medications');
+          importReplace('history');
+          importReplace('dayDetails');
+          importReplace('prnLogs');
+          importReplace('notificationSettings');
+          // takenMeds（日付ごと）
+          if (data.takenMeds) {
+            for (const [k, v] of Object.entries(data.takenMeds)) {
+              localStorage.setItem(k, JSON.stringify(v));
+            }
           }
         } else {
           // マージモード
-          if (data.medications !== undefined) {
-            const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.medications) || '[]');
-            const existingIds = new Set(existing.map((m) => m.id));
-            const merged = [...existing, ...data.medications.filter((m) => !existingIds.has(m.id))];
-            localStorage.setItem(STORAGE_KEYS.medications, JSON.stringify(merged));
-          }
-          if (data.history !== undefined) {
-            const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.history) || '[]');
-            const existingSet = new Set(existing.map((h) => `${h.name}_${h.date}`));
-            const merged = [...existing, ...data.history.filter((h) => !existingSet.has(`${h.name}_${h.date}`))];
-            localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(merged));
-          }
-          if (data.dayDetails !== undefined) {
-            const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.dayDetails) || '{}');
-            const merged = { ...existing, ...data.dayDetails };
-            localStorage.setItem(STORAGE_KEYS.dayDetails, JSON.stringify(merged));
+          importMergeArray('medications', (m) => m.id);
+          importMergeArray('history', (h) => `${h.name}_${h.date}`);
+          importMergeObject('dayDetails');
+          importMergeObject('prnLogs');
+          importMergeObject('notificationSettings');
+          if (data.takenMeds) {
+            for (const [k, v] of Object.entries(data.takenMeds)) {
+              const existing = JSON.parse(localStorage.getItem(k) || '[]');
+              const merged = [...new Set([...existing, ...v])];
+              localStorage.setItem(k, JSON.stringify(merged));
+            }
           }
         }
 

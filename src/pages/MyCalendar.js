@@ -41,6 +41,7 @@ const MyCalendar = () => {
 
   const { data: takenByDate = {} } = useQuery({
     queryKey: ['takenByDate'],
+    staleTime: 0,
     queryFn: () => {
       const taken = {};
       const today = moment();
@@ -61,6 +62,7 @@ const MyCalendar = () => {
 
   const { data: allPrnLogs = {} } = useQuery({
     queryKey: ['allPrnLogs'],
+    staleTime: 0,
     queryFn: () => {
       const raw = localStorage.getItem('pilltime_prn_logs');
       return raw ? JSON.parse(raw) : {};

@@ -302,7 +302,7 @@ const AddTaskPage = () => {
           </div>
         )}
 
-        {currentStep === 1 && (
+        {currentStep === 1 && !isPrn && (
           <div className="form-step">
             <div className="form-group">
               <label className="form-label">頻度</label>
@@ -387,7 +387,7 @@ const AddTaskPage = () => {
           </div>
         )}
 
-        {getLogicStep(currentStep) === 2 && !isPrn && (
+        {getLogicStep(currentStep) === 2 && (
           <div className="form-step">
             {errors.selectedTimes && <span className="form-error">{errors.selectedTimes}</span>}
             {errors.doseAmounts && <span className="form-error">{errors.doseAmounts}</span>}
@@ -395,17 +395,6 @@ const AddTaskPage = () => {
 
             {isPrn && (
               <div className="confirm-card" style={{ marginBottom: '12px', padding: '16px' }}>
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label className="form-label" htmlFor="prnTime">服用する時間帯</label>
-                  <input
-                    id="prnTime"
-                    type="time"
-                    className="form-input"
-                    value={selectedTimes[0] || ''}
-                    onChange={(e) => handleTimeChange(0, e.target.value)}
-                  />
-                  <span style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'block' }}>目安の時間（実際は服用時に記録されます）</span>
-                </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">1回あたりの服用量</label>
                   <NumberStepper value={doseAmount} onChange={setDoseAmount} unit={unit || '錠'} />

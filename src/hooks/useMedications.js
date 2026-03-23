@@ -27,3 +27,12 @@ export function useMedicationHistory() {
 
   return { history, loading, error: error?.message || null };
 }
+
+export function useAllRecords() {
+  const { data: records = [], isLoading: loading, error } = useQuery({
+    queryKey: ['allRecords'],
+    queryFn: () => api.get('/api/all-records'),
+  });
+
+  return { records, loading, error: error?.message || null };
+}

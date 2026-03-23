@@ -154,6 +154,22 @@ async function localRequest(endpoint, options = {}) {
     return getStored(STORAGE_KEYS.history) || [];
   }
 
+  // GET /api/all-records（全日付の服用記録を集約して返す）
+  if (method === 'GET' && endpoint === '/api/all-records') {
+    const allDetails = getStored(STORAGE_KEYS.dayDetails) || {};
+    const allRecords = [];
+    for (const [date, dayData] of Object.entries(allDetails)) {
+      if (dayData.records && dayData.records.length > 0) {
+        for (const record of dayData.records) {
+          allRecords.push({ ...record, date });
+        }
+      }
+    }
+    // 新しい順にソート
+    allRecords.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    return allRecords;
+  }
+
   // GET /api/day-details/:date
   if (method === 'GET' && endpoint.startsWith('/api/day-details/')) {
     const date = endpoint.replace('/api/day-details/', '');

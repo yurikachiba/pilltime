@@ -78,7 +78,7 @@ const MedicationCard = ({
         <div className="med-card__action-btns">
           <button
             className={`med-card__take-btn ${isTaken ? 'med-card__take-btn--done' : ''}`}
-            onClick={() => onMarkTaken(med.id)}
+            onClick={() => onMarkTaken()}
             disabled={isSkipped}
             aria-label={isTaken ? '服用済み' : '服用する'}
           >
@@ -86,7 +86,7 @@ const MedicationCard = ({
           </button>
           <button
             className={`med-card__skip-btn ${isSkipped ? 'med-card__skip-btn--done' : ''}`}
-            onClick={() => onSkip(med.id)}
+            onClick={() => onSkip()}
             disabled={isTaken}
             aria-label={isSkipped ? 'スキップ済み' : 'スキップする'}
           >

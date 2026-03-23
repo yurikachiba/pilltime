@@ -1036,8 +1036,24 @@ body {
 .record-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   margin-top: 16px;
+}
+
+.record-date-group__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.record-date-group__header:hover {
+  color: var(--color-primary);
 }
 
 .record-card {
@@ -1048,13 +1064,7 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: all var(--transition);
-}
-
-.record-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
 .record-card__icon {
@@ -1069,6 +1079,11 @@ body {
   flex-shrink: 0;
 }
 
+.record-card__icon--skipped {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
 .record-card__content {
   flex: 1;
   min-width: 0;
@@ -1080,15 +1095,18 @@ body {
   margin: 0;
 }
 
-.record-card__date {
+.record-card__detail {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin: 2px 0 0;
 }
 
-.record-card > svg {
+.record-card__status--taken {
+  color: var(--color-primary);
+}
+
+.record-card__status--skipped {
   color: var(--color-text-muted);
-  flex-shrink: 0;
 }
 
 /* --- Day Details --- */

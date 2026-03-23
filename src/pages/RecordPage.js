@@ -1,15 +1,32 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { useMedicationHistory } from '../hooks/useMedications';
+import { useAllRecords } from '../hooks/useMedications';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
+// 日付ごとにレコードをグループ化
+function groupByDate(records) {
+  const groups = {};
+  for (const record of records) {
+    const date = record.date;
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(record);
+  }
+  // 日付の新しい順にソート
+  return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
+}
+
+const STATUS_LABELS = {
+  taken: '服用済み',
+  skipped: 'スキップ',
+};
+
 const RecordPage = () => {
-  const { history, loading, error } = useMedicationHistory();
+  const { records, loading, error } = useAllRecords();
   const navigate = useNavigate();
 
-  if (loading) return <LoadingSpinner message="履歴を読み込み中..." />;
+  if (loading) return <LoadingSpinner message="記録を読み込み中..." />;
 
   if (error) {
     return (
@@ -20,6 +37,8 @@ const RecordPage = () => {
     );
   }
 
+  const grouped = groupByDate(records);
+
   return (
     <div className="record-page">
       <Helmet>
@@ -29,7 +48,7 @@ const RecordPage = () => {
 
       <h1 className="page-title">服用記録</h1>
 
-      {history.length === 0 ? (
+      {grouped.length === 0 ? (
         <EmptyState
           icon={
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -42,29 +61,50 @@ const RecordPage = () => {
         />
       ) : (
         <div className="record-list">
-          {history.map((medication, index) => (
-            <div
-              key={index}
-              className="record-card"
-              onClick={() => navigate(`/day-details/${medication.date || new Date().toISOString().split('T')[0]}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') navigate(`/day-details/${medication.date || new Date().toISOString().split('T')[0]}`);
-              }}
-            >
-              <div className="record-card__icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+          {grouped.map(([date, dayRecords]) => (
+            <div key={date} className="record-date-group">
+              <h2
+                className="record-date-group__header"
+                onClick={() => navigate(`/day-details/${date}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') navigate(`/day-details/${date}`);
+                }}
+              >
+                {date}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 18 15 12 9 6" />
                 </svg>
-              </div>
-              <div className="record-card__content">
-                <h3 className="record-card__name">{medication.name}</h3>
-                {medication.date && <p className="record-card__date">{medication.date}</p>}
-              </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+              </h2>
+              {dayRecords.map((record) => (
+                <div key={record.id} className="record-card">
+                  <div className="record-card__icon">
+                    {record.status === 'taken' ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="15" y1="9" x2="9" y2="15" />
+                        <line x1="9" y1="9" x2="15" y2="15" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="record-card__content">
+                    <h3 className="record-card__name">{record.name}</h3>
+                    <p className="record-card__detail">
+                      {record.doseAmount}{record.unit}
+                      {record.time && ` ・ ${record.time}`}
+                      {' ・ '}
+                      <span className={`record-card__status record-card__status--${record.status}`}>
+                        {STATUS_LABELS[record.status] || record.status}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>

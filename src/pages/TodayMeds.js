@@ -10,6 +10,20 @@ import MedicationCard from '../components/MedicationCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 
+// iOSでSafari以外のブラウザを検出
+function isIOSNonSafari() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua);
+  // iOSのSafariは "Safari" を含むが "CriOS"(Chrome) や "FxiOS"(Firefox) を含まない
+  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+  return isIOS && !isSafari;
+}
+
+// iOSでPWAとしてインストール済みかどうか
+function isIOSStandalone() {
+  return window.navigator.standalone === true;
+}
+
 // 記録からスケジュール薬の服用/スキップ状態を判定
 function findRecord(records, name, time, status) {
   return records.find((r) =>
@@ -26,6 +40,11 @@ const TodayMeds = () => {
   });
   const [records, setRecords] = useState([]);
   const [prnTimeInputs, setPrnTimeInputs] = useState({});
+  const [showSafariBanner, setShowSafariBanner] = useState(() => {
+    if (isIOSStandalone()) return false;
+    if (localStorage.getItem('pilltime_safari_banner_dismissed')) return false;
+    return isIOSNonSafari();
+  });
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -366,6 +385,25 @@ const TodayMeds = () => {
         <title>今日のお薬 - PillTime</title>
         <meta name="description" content="今日服用するお薬の一覧と服用管理" />
       </Helmet>
+
+      {showSafariBanner && (
+        <div className="safari-banner">
+          <p className="safari-banner__text">
+            通知を受け取るには、<strong>Safari</strong>でこのページを開いて「ホーム画面に追加」してください。
+            iOSではSafari以外のブラウザでPWA通知が使えません。
+          </p>
+          <button
+            className="safari-banner__close"
+            onClick={() => {
+              setShowSafariBanner(false);
+              localStorage.setItem('pilltime_safari_banner_dismissed', '1');
+            }}
+            aria-label="閉じる"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       <div className="today-meds__header">
         <div className="today-meds__title-row">

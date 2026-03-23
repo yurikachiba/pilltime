@@ -74,11 +74,13 @@ export function updateNotificationSchedules(medications, notificationSettings) {
 
     for (const time of times) {
       if (!time) continue;
+      const timeIndex = times.indexOf(time);
+      const dose = med.doseAmounts?.[timeIndex] ?? med.doseAmount;
       schedules.push({
         medId: med.id,
         time,
         title: getNotificationTitle(messageType),
-        body: `${med.name}を${med.doseAmount} ${med.unit}服用してください`,
+        body: `${med.name}を${dose} ${med.unit}服用してください`,
       });
     }
   }

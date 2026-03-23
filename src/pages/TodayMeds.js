@@ -87,7 +87,7 @@ const TodayMeds = () => {
       const messageType = notificationSettings[med.id]?.messageType || 'default';
       const message = NOTIFICATION_MESSAGES[messageType] || NOTIFICATION_MESSAGES.default;
       showNotificationViaSW(message, {
-        body: `${med.name}を${med.doseAmount} ${med.unit}服用してください`,
+        body: `${med.name}を${med.doseAmounts ? med.doseAmounts.join('/') : med.doseAmount} ${med.unit}服用してください`,
         icon: '/logo192.png',
         badge: '/favicon-32x32.png',
         vibrate: [200, 100, 200, 100, 200],

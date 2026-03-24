@@ -38,6 +38,17 @@ export async function registerServiceWorker() {
       sendToSW({ type: 'UPDATE_SCHEDULES', data: saved });
     }
 
+    // アプリ復帰時にService Workerへ即時チェックを指示
+    // iOSではSWのsetIntervalがバックグラウンドで停止するため、
+    // 復帰時に見逃した通知をまとめて発火させる
+    const triggerCheck = () => {
+      sendToSW({ type: 'CHECK_NOW' });
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') triggerCheck();
+    });
+    window.addEventListener('focus', triggerCheck);
+
     // Service Workerからのメッセージに応答
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'REQUEST_SCHEDULES') {

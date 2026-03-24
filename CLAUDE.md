@@ -6,10 +6,12 @@
 
 ## セットアップ
 ```bash
-npm install
+npm install      # 最初に必ず実行
 npm start        # 開発サーバー起動
 npm run build    # 本番ビルド
 ```
+
+**注意: `npm run build` は `npm install` の後に実行すること。ビルドしてからインストールしない。**
 
 ## プロジェクト概要
 お薬の服用管理PWAアプリ（React）。データはすべてlocalStorageに保存。

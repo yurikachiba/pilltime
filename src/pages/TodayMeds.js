@@ -21,6 +21,11 @@ function isIOSNonSafari() {
   return isIOS && !isSafari;
 }
 
+// iOSかどうか
+function isIOS() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent);
+}
+
 // iOSでPWAとしてインストール済みかどうか
 function isIOSStandalone() {
   return window.navigator.standalone === true;
@@ -374,6 +379,14 @@ const TodayMeds = () => {
           >
             &times;
           </button>
+        </div>
+      )}
+
+      {isIOS() && !showSafariBanner && (
+        <div className="ios-notice">
+          <p className="ios-notice__text">
+            iOSではアプリがバックグラウンドの間は通知が届きません。アプリを開いた際に未通知分をお届けします。
+          </p>
         </div>
       )}
 

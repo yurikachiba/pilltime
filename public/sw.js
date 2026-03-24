@@ -136,10 +136,24 @@ async function processSchedules(schedules) {
   for (const schedule of schedules) {
     const fireId = `${schedule.medId}_${schedule.time}`;
     if (fired.includes(fireId)) continue;
-    if (schedule.time !== currentTime) continue;
+
+    // 予定時刻が現在時刻以前（当日の過去分も含む）なら発火
+    // これによりSWがバックグラウンドで停止していた間の通知も復帰時に届く
+    if (schedule.time > currentTime) continue;
+
+    // 予定時刻から3時間以上経過していたら古すぎるのでスキップ
+    const [schedH, schedM] = schedule.time.split(':').map(Number);
+    const [nowH, nowM] = [now.getHours(), now.getMinutes()];
+    const diffMinutes = (nowH * 60 + nowM) - (schedH * 60 + schedM);
+    if (diffMinutes > 180) continue;
+
+    const isLate = schedule.time < currentTime;
+    const body = isLate
+      ? `${schedule.body}（${schedule.time}の通知です）`
+      : schedule.body;
 
     await self.registration.showNotification(schedule.title, {
-      body: schedule.body,
+      body,
       icon: '/logo192.png',
       badge: '/favicon-32x32.png',
       tag: fireId,
@@ -227,6 +241,11 @@ self.addEventListener('message', (event) => {
   if (type === 'RESET_FIRED') {
     const today = getLocalToday();
     saveToIDB(`fired_${today}`, []);
+  }
+
+  if (type === 'CHECK_NOW') {
+    // アプリ復帰時の即時チェック（visibilitychange/focus対応）
+    checkAndFireNotifications();
   }
 });
 

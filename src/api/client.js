@@ -1,3 +1,5 @@
+import { getLocalToday, formatLocalDate } from '../utils/dateUtils';
+
 export const STORAGE_KEYS = {
   medications: 'pilltime_medications',
   history: 'pilltime_history',
@@ -99,7 +101,7 @@ function migrateToRecords() {
     // 削除済みの薬はスキップ
     if (!med) continue;
     for (const log of logs) {
-      const logDate = log.timestamp ? new Date(log.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      const logDate = log.timestamp ? formatLocalDate(new Date(log.timestamp)) : getLocalToday();
       if (!recordsByDate[logDate]) recordsByDate[logDate] = [];
       recordsByDate[logDate].push({
         id: generateId(),
@@ -279,7 +281,7 @@ async function localRequest(endpoint, options = {}) {
     const history = getStored(STORAGE_KEYS.history) || [];
     history.unshift({
       name: body.name,
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalToday(),
     });
     setStored(STORAGE_KEYS.history, history);
 

@@ -1,4 +1,5 @@
 // 複数回服用の薬を時間ごとに展開するユーティリティ
+import { parseLocalDate } from './dateUtils';
 
 // 日曜始まりの曜日名（Date.getDay()に対応）
 const DAY_NAMES_SUNDAY_START = ['日', '月', '火', '水', '木', '金', '土'];
@@ -28,15 +29,15 @@ export function expandMedsByTime(meds) {
  * 指定日に該当する定時薬をフィルタ→展開して返す
  */
 export function getScheduledMedsForDate(medications, dateStr) {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   const dayName = DAY_NAMES_SUNDAY_START[date.getDay()];
 
   const filtered = medications.filter((med) => {
     if (med.frequency === 'prn') return false;
     if (med.frequency === 'weekly' && med.selectedDays && !med.selectedDays.includes(dayName)) return false;
     if (med.frequency === 'interval' && med.intervalType === 'day' && med.startDate && med.intervalValue) {
-      const start = new Date(med.startDate);
-      const now = new Date(dateStr);
+      const start = parseLocalDate(med.startDate);
+      const now = parseLocalDate(dateStr);
       const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
       if (diffDays < 0 || diffDays % Number(med.intervalValue) !== 0) return false;
     }

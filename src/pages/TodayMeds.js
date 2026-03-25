@@ -47,6 +47,7 @@ const TodayMeds = () => {
   });
   const [records, setRecords] = useState([]);
   const [prnTimeInputs, setPrnTimeInputs] = useState({});
+  const [prnDateInputs, setPrnDateInputs] = useState({});
   const [showSafariBanner, setShowSafariBanner] = useState(() => {
     if (isIOSStandalone()) return false;
     if (localStorage.getItem('pilltime_safari_banner_dismissed')) return false;
@@ -301,17 +302,22 @@ const TodayMeds = () => {
   const handlePrnLog = useCallback(async (med) => {
     try {
       const inputTime = prnTimeInputs[med.id];
+      const inputDate = prnDateInputs[med.id] || today;
       let timestamp;
       if (inputTime) {
         const [h, m] = inputTime.split(':');
-        const d = new Date();
-        d.setHours(Number(h), Number(m), 0, 0);
-        timestamp = d.toISOString();
+        const [y, mo, d] = inputDate.split('-').map(Number);
+        const dt = new Date(y, mo - 1, d, Number(h), Number(m), 0, 0);
+        timestamp = dt.toISOString();
+      } else if (inputDate !== today) {
+        // 過去の日付で時刻未指定の場合は12:00をデフォルトにする
+        const [y, mo, d] = inputDate.split('-').map(Number);
+        timestamp = new Date(y, mo - 1, d, 12, 0, 0, 0).toISOString();
       } else {
         timestamp = new Date().toISOString();
       }
       const record = await api.post('/api/record', {
-        date: today,
+        date: inputDate,
         name: med.name,
         doseAmount: med.doseAmount,
         unit: med.unit,
@@ -320,11 +326,14 @@ const TodayMeds = () => {
         type: 'prn',
         timestamp,
       });
-      setRecords((prev) => [...prev, record]);
+      // 今日の日付の場合のみ画面上の記録リストに追加
+      if (inputDate === today) {
+        setRecords((prev) => [...prev, record]);
+      }
     } catch {
       // 無視
     }
-  }, [today, prnTimeInputs]);
+  }, [today, prnTimeInputs, prnDateInputs]);
 
   const handleDeletePrnLog = useCallback(async (recordId) => {
     try {
@@ -500,6 +509,13 @@ const TodayMeds = () => {
                         </div>
                         <div className="prn-card__controls">
                           <input
+                            type="date"
+                            className="prn-card__date-input"
+                            value={prnDateInputs[med.id] || today}
+                            max={today}
+                            onChange={(e) => setPrnDateInputs((prev) => ({ ...prev, [med.id]: e.target.value }))}
+                          />
+                          <input
                             type="time"
                             className="prn-card__time-input"
                             value={prnTimeInputs[med.id] || ''}
@@ -509,7 +525,15 @@ const TodayMeds = () => {
                             className="prn-card__log-btn"
                             onClick={() => handlePrnLog(med)}
                           >
-                            {prnTimeInputs[med.id] ? `${prnTimeInputs[med.id]}に服用` : '今飲んだ'}
+                            {(() => {
+                              const selectedDate = prnDateInputs[med.id] || today;
+                              const isToday = selectedDate === today;
+                              const dateLabel = isToday ? '' : `${selectedDate.slice(5).replace('-', '/')} `;
+                              if (prnTimeInputs[med.id]) {
+                                return `${dateLabel}${prnTimeInputs[med.id]}に服用`;
+                              }
+                              return isToday ? '今飲んだ' : `${dateLabel}に服用`;
+                            })()}
                           </button>
                           <button
                             type="button"
